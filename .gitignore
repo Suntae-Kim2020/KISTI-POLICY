@@ -1,0 +1,16 @@
+# 데이터 캐시 (compute.py 생성물, ~30MB)
+data_cache.json
+data_cache_*.json
+
+# 생성물 폴더 (HTML/PNG/CSV/CDN 캐시)
+generated/
+
+# 제외 목록 (런타임 상태)
+exclusions.json
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
