@@ -5,20 +5,94 @@ KISTI Policy 분석 대시보드 — Flask 서버
 """
 import base64
 import json
+import os
 import re
+import secrets
 import subprocess
 import sys
 import urllib.request
+from datetime import timedelta
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request
+import io
+
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
+from flask_compress import Compress
+from flask_login import LoginManager, current_user, login_required
+from flask_wtf.csrf import CSRFProtect
+
+from admin import admin_bp
+from auth import auth_bp, load_user_by_id
+
+
+def _get_flask_secret_key():
+    key = os.environ.get("FLASK_SECRET_KEY")
+    if key:
+        return key
+    try:
+        from google.cloud import secretmanager
+        client = secretmanager.SecretManagerServiceClient()
+        project = os.environ.get("GCP_PROJECT", "ailibrary-kisti")
+        name = f"projects/{project}/secrets/flask-secret-key/versions/latest"
+        return client.access_secret_version(request={"name": name}).payload.data.decode("utf-8")
+    except Exception:
+        return secrets.token_hex(32)
+
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB (일괄 저장용)
+app.config["SECRET_KEY"] = _get_flask_secret_key()
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
+app.config["REMEMBER_COOKIE_DURATION"] = timedelta(days=30)
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
+if os.environ.get("K_SERVICE"):  # Cloud Run에서만 Secure 쿠키 강제
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["REMEMBER_COOKIE_SECURE"] = True
+app.config["COMPRESS_MIMETYPES"] = [
+    "text/html", "text/css", "text/javascript",
+    "application/javascript", "application/json",
+]
+app.config["COMPRESS_LEVEL"] = 6
+app.config["COMPRESS_MIN_SIZE"] = 500
+app.config["WTF_CSRF_TIME_LIMIT"] = None
+Compress(app)
+
+csrf = CSRFProtect(app)
+
+login_manager = LoginManager(app)
+login_manager.login_view = "auth.login"
+login_manager.login_message = "로그인이 필요합니다."
+
+
+@login_manager.user_loader
+def _load_user(user_id):
+    return load_user_by_id(user_id)
+
+
+app.register_blueprint(auth_bp)
+app.register_blueprint(admin_bp)
+# API POST 라우트는 CSRF 예외 (프론트에서 토큰 없이 호출)
+csrf.exempt(auth_bp)
+
+
+def admin_required(fn):
+    from functools import wraps
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for("auth.login"))
+        if not getattr(current_user, "is_admin", False):
+            abort(403)
+        return fn(*args, **kwargs)
+    return wrapper
+
 
 DATA_DIR = Path(__file__).parent
 EXCLUSIONS_PATH = DATA_DIR / "exclusions.json"
-KISTEP_BASE = Path("/Users/kimsuntae/KISTEP")
+KISTEP_BASE = Path(os.environ.get("KISTEP_BASE", "/Users/kimsuntae/KISTEP"))
 _caches = {}  # 버전별 캐시: {version_key: data_dict}
 
 
@@ -40,11 +114,13 @@ def _load_cache(version=None):
 
 
 @app.route("/")
+@login_required
 def index():
-    return render_template("dashboard.html")
+    return render_template("dashboard.html", current_user=current_user)
 
 
 @app.route("/api/versions")
+@login_required
 def api_versions():
     """생성된 캐시 + 소스 데이터 버전 통합 목록 반환."""
     # 1) 이미 생성된 data_cache_*.json
@@ -102,6 +178,8 @@ def api_versions():
 
 
 @app.route("/api/compute", methods=["POST"])
+@admin_required
+@csrf.exempt
 def api_compute():
     """compute.py 실행하여 데이터 캐시 생성. ~2분 소요."""
     data = request.get_json(force=True)
@@ -140,8 +218,15 @@ def api_compute():
 
 
 @app.route("/api/export", methods=["POST"])
+@login_required
+@csrf.exempt
 def api_export():
-    """차트(PNG)와 테이블(CSV)을 서버 폴더에 일괄 저장."""
+    """(사용되지 않음) 일괄 저장은 클라이언트 JSZip으로 이전됨."""
+    return jsonify({"ok": False, "error": "클라이언트 ZIP 방식으로 이전되었습니다."}), 410
+
+
+def _removed_api_export():
+    """원본 코드 보관 (Cloud Run 파일시스템 불영속으로 미사용)."""
     data = request.get_json(force=True)
     folder_name = data.get("folder", "export")
     items = data.get("items", [])
@@ -190,6 +275,8 @@ def api_export():
 
 
 @app.route("/api/export-html", methods=["POST"])
+@admin_required
+@csrf.exempt
 def api_export_html():
     """독립 실행 가능한 라이브차트 HTML 생성."""
     payload = request.get_json(force=True)
@@ -340,24 +427,20 @@ def api_export_html():
     ])
     html = html.replace('init();\n</script>', boot_code + '\n</script>')
 
-    # 6. 저장
+    # 6. 다운로드 응답 (Cloud Run 파일시스템 불영속이므로 스트리밍 반환)
     period = f"{start_year}-{end_year}"
     ver = version or meta.get("data_version", "unknown")
+    filename = f"dashboard_v{ver}_{period}.html"
 
-    out_dir = DATA_DIR / "generated" / "html"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"dashboard_v{ver}_{period}.html"
-    out_path.write_text(html, encoding="utf-8")
-
-    size_mb = out_path.stat().st_size / (1024 * 1024)
-    return jsonify({
-        "ok": True,
-        "path": str(out_path),
-        "size_mb": round(size_mb, 1),
-    })
+    buf = io.BytesIO(html.encode("utf-8"))
+    return send_file(
+        buf, mimetype="text/html; charset=utf-8",
+        as_attachment=True, download_name=filename,
+    )
 
 
 @app.route("/api/data")
+@login_required
 def api_data():
     version = request.args.get("version")
     return jsonify(_load_cache(version))
@@ -375,11 +458,14 @@ def _load_exclusions():
 
 
 @app.route("/api/exclusions", methods=["GET"])
+@login_required
 def get_exclusions():
     return jsonify(_load_exclusions())
 
 
 @app.route("/api/exclusions", methods=["POST"])
+@admin_required
+@csrf.exempt
 def save_exclusions():
     data = request.get_json(force=True)
     out = {
@@ -412,5 +498,6 @@ if __name__ == "__main__":
         print(f"  IBS 논문: {s.get('ibs_papers', '?'):,}건")
         print(f"  IBS 유발논문: {s.get('ibs_induced_papers', '?'):,}건")
         print(f"  PAL 유발논문: {s.get('pal_induced_papers', '?'):,}건")
-    print("Starting KISTI Policy Dashboard on http://localhost:5002")
-    app.run(host="0.0.0.0", port=5002, debug=False)
+    port = int(os.environ.get("PORT", 5002))
+    print(f"Starting KISTI Policy Dashboard on http://0.0.0.0:{port}")
+    app.run(host="0.0.0.0", port=port, debug=False)

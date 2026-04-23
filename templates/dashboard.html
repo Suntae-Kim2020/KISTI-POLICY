@@ -6,6 +6,7 @@
 <title>KISTI/KBSI Policy 분석 대시보드</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 :root {
     --bg: #1a1b2e;
@@ -554,6 +555,15 @@ mark.hl-kbsi { background: rgba(76,175,80,0.35); color: var(--green); border-rad
         <button class="btn-generate" id="btnGenerate" onclick="generateData()" style="display:none;">생성</button>
         <button onclick="exportAll()">일괄 저장</button>
         <button onclick="exportHTML()">라이브차트 생성</button>
+        {% if current_user and current_user.is_authenticated %}
+        <span style="margin-left:16px; color:var(--fg2); font-size:12px;">
+            {{ current_user.name }}{% if current_user.is_admin %} (관리자){% endif %}
+        </span>
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('admin.users_list') }}" style="color:var(--accent); font-size:12px; margin-left:8px; text-decoration:none;">사용자 관리</a>
+        {% endif %}
+        <a href="{{ url_for('auth.logout') }}" style="color:var(--fg2); font-size:12px; margin-left:8px; text-decoration:none;">로그아웃</a>
+        {% endif %}
     </div>
 </div>
 <div class="layout">
@@ -1046,48 +1056,75 @@ async function exportAll() {
     // 원래 페이지 복원
     showPage(prevPage);
 
-    statusEl.textContent = '서버에 저장 중... (' + items.length + '개 파일)';
+    statusEl.textContent = 'ZIP 생성 중... (' + items.length + '개 파일)';
     barEl.style.width = '70%';
 
-    // 대용량 전송을 위해 청크 분할 (한 번에 50개씩)
-    var chunkSize = 50;
+    if (typeof JSZip === 'undefined') {
+        overlay.remove();
+        alert('JSZip 라이브러리가 로딩되지 않았습니다. 페이지를 새로고침하세요.');
+        return;
+    }
+
+    var zip = new JSZip();
     var totalItems = items.length;
-    var savedTotal = 0;
-    var allErrors = [];
+    var added = 0;
+    var errors = [];
 
-    for (var ci = 0; ci < totalItems; ci += chunkSize) {
-        var chunk = items.slice(ci, ci + chunkSize);
-        statusEl.textContent = '서버에 저장 중... (' + Math.min(ci + chunkSize, totalItems) + '/' + totalItems + ')';
-        barEl.style.width = Math.round(70 + (ci / totalItems) * 28) + '%';
-
+    for (var ii = 0; ii < totalItems; ii++) {
+        var item = items[ii];
         try {
-            var resp = await fetch('/api/export', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ folder: folderName, items: chunk }),
-            });
-            var result = await resp.json();
-            if (result.ok) {
-                savedTotal += result.saved;
-                if (result.errors && result.errors.length) {
-                    allErrors = allErrors.concat(result.errors);
-                }
-            } else {
-                allErrors.push(result.error || '알 수 없는 오류');
+            if (item.type === 'png') {
+                var b64 = item.data;
+                if (b64.indexOf(',') !== -1) b64 = b64.split(',', 2)[1];
+                zip.file(item.name, b64, { base64: true });
+                added++;
+            } else if (item.type === 'csv') {
+                // UTF-8 BOM 추가 (Excel 한글 호환)
+                zip.file(item.name, '﻿' + item.data);
+                added++;
             }
         } catch (e) {
-            allErrors.push('네트워크 오류: ' + e.message);
+            errors.push(item.name + ': ' + e.message);
+        }
+        if (ii % 10 === 0) {
+            barEl.style.width = Math.round(70 + (ii / totalItems) * 25) + '%';
+            await new Promise(r => setTimeout(r, 0));  // UI 업데이트 양보
         }
     }
 
-    barEl.style.width = '100%';
-    overlay.remove();
+    statusEl.textContent = 'ZIP 압축 중...';
+    barEl.style.width = '95%';
 
-    var msg = '저장 완료!\n\n폴더: generated/' + folderName + '/\n파일 수: ' + savedTotal + '개';
-    if (allErrors.length > 0) {
-        msg += '\n\n오류 (' + allErrors.length + '건):\n' + allErrors.slice(0, 5).join('\n');
+    try {
+        var blob = await zip.generateAsync({
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 },
+        }, function(meta) {
+            barEl.style.width = Math.round(95 + meta.percent * 0.05) + '%';
+        });
+
+        // 다운로드 트리거
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = folderName + '.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+
+        overlay.remove();
+        var sizeMB = (blob.size / (1024 * 1024)).toFixed(1);
+        var msg = '다운로드 시작: ' + folderName + '.zip\n\n파일 수: ' + added + '개\n크기: ' + sizeMB + ' MB';
+        if (errors.length > 0) {
+            msg += '\n\n오류 (' + errors.length + '건):\n' + errors.slice(0, 5).join('\n');
+        }
+        alert(msg);
+    } catch (e) {
+        overlay.remove();
+        alert('ZIP 생성 실패: ' + e.message);
     }
-    alert(msg);
 }
 
 async function exportHTML() {
@@ -1113,17 +1150,34 @@ async function exportHTML() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ version: ver, start_year: startY, end_year: endY }),
         });
-        var result = await resp.json();
+
+        if (!resp.ok) {
+            var errMsg = '생성 실패 (HTTP ' + resp.status + ')';
+            try { var j = await resp.json(); errMsg = j.error || errMsg; } catch (_) {}
+            overlay.remove();
+            alert(errMsg);
+            return;
+        }
+
+        // 파일명 추출 (Content-Disposition)
+        var disp = resp.headers.get('Content-Disposition') || '';
+        var m = disp.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+        var filename = m ? decodeURIComponent(m[1]) : ('dashboard_v' + ver + '_' + startY + '-' + endY + '.html');
+
+        var blob = await resp.blob();
         overlay.remove();
 
-        if (result.ok) {
-            alert('라이브차트 HTML 생성 완료!\n\n'
-                + '경로: ' + result.path + '\n'
-                + '크기: ' + result.size_mb + ' MB\n\n'
-                + '브라우저에서 직접 열 수 있습니다.');
-        } else {
-            alert('생성 실패: ' + (result.error || '알 수 없는 오류'));
-        }
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+
+        var sizeMB = (blob.size / (1024 * 1024)).toFixed(1);
+        alert('라이브차트 HTML 다운로드 시작\n\n파일: ' + filename + '\n크기: ' + sizeMB + ' MB\n\n다운로드 폴더에서 확인하세요.');
     } catch (e) {
         overlay.remove();
         alert('생성 실패: ' + e.message);

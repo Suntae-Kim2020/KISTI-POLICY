@@ -1,0 +1,15 @@
+.git/
+.gitignore
+.claude/
+.DS_Store
+__pycache__/
+*.pyc
+rawdata/
+generated/
+exclusions.json
+data_cache_*.json
+KISTI_연구성과_우수성_분석.txt
+파일목록_참고자료.txt
+scan_*.py
+DEPLOYMENT.md
+CLAUDE.md
