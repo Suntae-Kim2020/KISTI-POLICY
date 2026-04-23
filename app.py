@@ -303,6 +303,9 @@ def api_export_html():
         'EXCLUSIONS.induced = new Set(_excl.induced || []);',
         'EXCLUSIONS.kbsi = new Set(_excl.kbsi || []);',
         'EXCLUSIONS.kbsi_induced = new Set(_excl.kbsi_induced || []);',
+        'EXCLUSIONS.ibs = new Set(_excl.ibs || []);',
+        'EXCLUSIONS.ibs_induced = new Set(_excl.ibs_induced || []);',
+        'EXCLUSIONS.pal_induced = new Set(_excl.pal_induced || []);',
         '_applyDataGlobals();',
         # PERIOD를 _applyDataGlobals() 이후에 설정해야 덮어써지지 않음
         f'PERIOD.start = {start_year};',
@@ -310,7 +313,7 @@ def api_export_html():
         f"document.getElementById('startYearInput').value = {start_year};",
         f"document.getElementById('endYearInput').value = {end_year};",
         "document.getElementById('headerSubtitle').textContent = "
-        f"'KISTI\\xb7KBSI 논문 성과 및 인프라 유발 효과 비교 분석 ({start_year}-{end_year})"
+        f"'KISTI\\xb7KBSI\\xb7IBS\\xb7PAL 논문 성과 및 인프라 유발 효과 비교 분석 ({start_year}-{end_year})"
         f" \\u2014 데이터 v' + DATA._meta.data_version;",
         # 기간 범위 제한: 입력 min/max + applyPeriod 래핑
         f'var _EMIN={start_year}, _EMAX={end_year};',
@@ -361,7 +364,7 @@ def api_data():
 
 
 def _load_exclusions():
-    defaults = {"kisti": [], "induced": [], "kbsi": [], "kbsi_induced": []}
+    defaults = {"kisti": [], "induced": [], "kbsi": [], "kbsi_induced": [], "ibs": [], "ibs_induced": [], "pal_induced": []}
     if EXCLUSIONS_PATH.exists():
         data = json.loads(EXCLUSIONS_PATH.read_text(encoding="utf-8"))
         for k in defaults:
@@ -384,6 +387,9 @@ def save_exclusions():
         "induced": data.get("induced", []),
         "kbsi": data.get("kbsi", []),
         "kbsi_induced": data.get("kbsi_induced", []),
+        "ibs": data.get("ibs", []),
+        "ibs_induced": data.get("ibs_induced", []),
+        "pal_induced": data.get("pal_induced", []),
     }
     EXCLUSIONS_PATH.write_text(
         json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8"
@@ -403,5 +409,8 @@ if __name__ == "__main__":
         print(f"  KISTI 유발논문: {s.get('induced_papers', '?'):,}건")
         print(f"  KBSI 논문: {s.get('kbsi_papers', '?'):,}건")
         print(f"  KBSI 유발논문: {s.get('kbsi_induced_papers', '?'):,}건")
+        print(f"  IBS 논문: {s.get('ibs_papers', '?'):,}건")
+        print(f"  IBS 유발논문: {s.get('ibs_induced_papers', '?'):,}건")
+        print(f"  PAL 유발논문: {s.get('pal_induced_papers', '?'):,}건")
     print("Starting KISTI Policy Dashboard on http://localhost:5002")
     app.run(host="0.0.0.0", port=5002, debug=False)

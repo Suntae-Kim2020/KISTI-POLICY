@@ -194,6 +194,7 @@ def parse_args() -> Optional[RunConfig]:
 
 KISTI_ORG_ALIAS = "KOREA INST SCI & TECHNOL INFORMAT"
 KBSI_ORG_ALIAS = "KOREA BASIC SCI INST"
+IBS_ORG_ALIAS = "INST BASIC SCI KOREA"
 
 ESI_22_FIELDS = [
     "Agricultural Sciences", "Biology & Biochemistry", "Chemistry",
@@ -399,6 +400,16 @@ def load_data(config: RunConfig):
     kbsi_induced_papers = json.loads(kbsi_induced_path.read_text(encoding="utf-8"))
     print(f"  KBSI 유발논문 JSON: {len(kbsi_induced_papers):,}건")
 
+    # IBS 유발논문 로딩
+    ibs_induced_path = resolve_file("ibs_induced_papers.json", config)
+    ibs_induced_papers = json.loads(ibs_induced_path.read_text(encoding="utf-8"))
+    print(f"  IBS 유발논문 JSON: {len(ibs_induced_papers):,}건")
+
+    # PAL 유발논문 로딩
+    pal_induced_path = resolve_file("pal_induced_papers.json", config)
+    pal_induced_papers = json.loads(pal_induced_path.read_text(encoding="utf-8"))
+    print(f"  PAL 유발논문 JSON: {len(pal_induced_papers):,}건")
+
     # 출연연 학위별 인력 CSV 로딩
     gri_csv_path = Path(__file__).parent / "rawdata" / "국가과학기술연구회 소관 출연연 학위별 인력 정보(정규인력 전체)_20211231.csv"
     gri_personnel = {}
@@ -417,21 +428,22 @@ def load_data(config: RunConfig):
     else:
         print(f"  ⚠ 출연연 인력 CSV 없음: {gri_csv_path}")
 
-    return wos_data, inst_data, jcr_data, induced_papers, kbsi_induced_papers, gri_personnel
+    return wos_data, inst_data, jcr_data, induced_papers, kbsi_induced_papers, ibs_induced_papers, pal_induced_papers, gri_personnel
 
 
 # ═══════════════════════════════════════════════════════════
 # 2. 논문 그룹 분류
 # ═══════════════════════════════════════════════════════════
-def classify_papers(wos_data, inst_data, induced_papers, kbsi_induced_papers):
+def classify_papers(wos_data, inst_data, induced_papers, kbsi_induced_papers, ibs_induced_papers, pal_induced_papers):
     print("\n=== 논문 분류 ===")
 
     # wos_data를 UT→record 딕셔너리로
     wos_by_ut = {r["UT"]: r for r in wos_data if "UT" in r}
 
-    # inst_data에서 KISTI 소속 UT 추출
+    # inst_data에서 KISTI/KBSI/IBS 소속 UT 추출
     kisti_uts = set()
     kbsi_uts = set()
+    ibs_uts = set()
     for rec in inst_data:
         oa = rec.get("org_alias", "")
         ut = rec.get("UT", "")
@@ -441,14 +453,19 @@ def classify_papers(wos_data, inst_data, induced_papers, kbsi_induced_papers):
             kisti_uts.add(ut)
         elif oa == KBSI_ORG_ALIAS:
             kbsi_uts.add(ut)
+        elif oa == IBS_ORG_ALIAS:
+            ibs_uts.add(ut)
     print(f"  KISTI 소속 UT (inst_data): {len(kisti_uts):,}건")
     print(f"  KBSI 소속 UT (inst_data): {len(kbsi_uts):,}건")
+    print(f"  IBS 소속 UT (inst_data): {len(ibs_uts):,}건")
 
     # Article 필터 적용
     kisti_author_uts = {ut for ut in kisti_uts if ut in wos_by_ut and _wos_is_article(wos_by_ut[ut])}
     kbsi_author_uts = {ut for ut in kbsi_uts if ut in wos_by_ut and _wos_is_article(wos_by_ut[ut])}
+    ibs_author_uts = {ut for ut in ibs_uts if ut in wos_by_ut and _wos_is_article(wos_by_ut[ut])}
     print(f"  KISTI 소속 UT (Article 필터 후): {len(kisti_author_uts):,}건")
     print(f"  KBSI 소속 UT (Article 필터 후): {len(kbsi_author_uts):,}건")
+    print(f"  IBS 소속 UT (Article 필터 후): {len(ibs_author_uts):,}건")
 
     # ── KISTI 유발논문 ──
     induced_json_uts = set()
@@ -536,14 +553,96 @@ def classify_papers(wos_data, inst_data, induced_papers, kbsi_induced_papers):
             kbsi_pure_induced_records.append(rec)
     print(f"  KBSI wos_data 매칭: {kbsi_induced_matched:,}건")
 
+    # ── IBS 유발논문 ──
+    ibs_induced_json_uts = set()
+    ibs_induced_meta = {}
+    for p in ibs_induced_papers:
+        ut = p.get("UT", "")
+        if ut:
+            ibs_induced_json_uts.add(ut)
+            ibs_induced_meta[ut] = p
+
+    ibs_overlap = ibs_author_uts & ibs_induced_json_uts
+    ibs_author_uts = ibs_author_uts - ibs_overlap
+    ibs_pure_induced_uts = ibs_induced_json_uts
+    print(f"  IBS 유발논문 JSON UT: {len(ibs_induced_json_uts):,}건")
+    print(f"  중복(소속+사사) → 유발논문으로 이동: {len(ibs_overlap):,}건")
+    print(f"  IBS 직접논문 (사사 제외): {len(ibs_author_uts):,}건")
+    print(f"  IBS 유발논문: {len(ibs_pure_induced_uts):,}건")
+
+    ibs_induced_matched = 0
+    ibs_pure_induced_records = []
+    for ut in ibs_pure_induced_uts:
+        if ut in wos_by_ut:
+            rec = dict(wos_by_ut[ut])
+            rec["_induced_meta"] = ibs_induced_meta[ut]
+            if _wos_is_article(rec):
+                ibs_pure_induced_records.append(rec)
+                ibs_induced_matched += 1
+        else:
+            jrec = ibs_induced_meta[ut]
+            rec = {
+                "UT": ut,
+                "PY": int(jrec.get("PY", 0)),
+                "SO": jrec.get("SO", ""),
+                "TC": int(jrec.get("TC", 0)),
+                "db": jrec.get("db", ""),
+                "WC": jrec.get("WC", ""),
+                "DT": "",
+                "std_field": None,
+                "_induced_meta": jrec,
+            }
+            ibs_pure_induced_records.append(rec)
+    print(f"  IBS wos_data 매칭: {ibs_induced_matched:,}건")
+
+    # ── PAL 유발논문 (직접논문 없음, 유발논문만) ──
+    pal_induced_json_uts = set()
+    pal_induced_meta = {}
+    for p in pal_induced_papers:
+        ut = p.get("UT", "")
+        if ut:
+            pal_induced_json_uts.add(ut)
+            pal_induced_meta[ut] = p
+    pal_pure_induced_uts = pal_induced_json_uts
+    print(f"  PAL 유발논문 JSON UT: {len(pal_induced_json_uts):,}건")
+
+    pal_induced_matched = 0
+    pal_pure_induced_records = []
+    for ut in pal_pure_induced_uts:
+        if ut in wos_by_ut:
+            rec = dict(wos_by_ut[ut])
+            rec["_induced_meta"] = pal_induced_meta[ut]
+            if _wos_is_article(rec):
+                pal_pure_induced_records.append(rec)
+                pal_induced_matched += 1
+        else:
+            jrec = pal_induced_meta[ut]
+            rec = {
+                "UT": ut,
+                "PY": int(jrec.get("PY", 0)),
+                "SO": jrec.get("SO", ""),
+                "TC": int(jrec.get("TC", 0)),
+                "db": jrec.get("db", ""),
+                "WC": jrec.get("WC", ""),
+                "DT": "",
+                "std_field": None,
+                "_induced_meta": jrec,
+            }
+            pal_pure_induced_records.append(rec)
+    print(f"  PAL wos_data 매칭: {pal_induced_matched:,}건")
+
     # 논문 레코드
     kisti_records = [wos_by_ut[ut] for ut in kisti_author_uts if ut in wos_by_ut]
     kbsi_records = [wos_by_ut[ut] for ut in kbsi_author_uts if ut in wos_by_ut]
+    ibs_records = [wos_by_ut[ut] for ut in ibs_author_uts if ut in wos_by_ut]
 
     return (wos_by_ut, kisti_records, pure_induced_records, induced_meta,
             kisti_author_uts, pure_induced_uts,
             kbsi_records, kbsi_pure_induced_records, kbsi_induced_meta,
-            kbsi_author_uts, kbsi_pure_induced_uts)
+            kbsi_author_uts, kbsi_pure_induced_uts,
+            ibs_records, ibs_pure_induced_records, ibs_induced_meta,
+            ibs_author_uts, ibs_pure_induced_uts,
+            pal_pure_induced_records, pal_induced_meta, pal_pure_induced_uts)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -2099,6 +2198,845 @@ def compute_sec6(kisti_records, pure_induced_records,
 
 
 # ═══════════════════════════════════════════════════════════
+# 섹션 7: IBS 논문분석 (sec4와 동일 로직, IBS 데이터 적용)
+# ═══════════════════════════════════════════════════════════
+def compute_sec7(ibs_records, kr_by_year, kr_tc_by_year, kr_by_field,
+                 inst_data, jcr_data, wos_by_ut, ibs_author_uts, config: RunConfig):
+    print("\n=== 섹션 7: IBS 논문분석 ===")
+    result = {}
+    years = config.years
+
+    # ── 7-1: 발표 현황 ──
+    by_year = Counter()
+    by_year_db = defaultdict(lambda: Counter())
+    for r in ibs_records:
+        py = r.get("PY", 0)
+        if config.start_year <= py <= config.end_year:
+            by_year[py] += 1
+            by_year_db[py][r.get("db", "기타")] += 1
+
+    year_data = []
+    for y in years:
+        cnt = by_year.get(y, 0)
+        kr = kr_by_year.get(y, 1)
+        prev = by_year.get(y - 1, 0)
+        growth = round((cnt - prev) / prev * 100, 1) if prev > 0 else 0
+        year_data.append({
+            "year": y, "count": cnt,
+            "growth_rate": growth,
+            "kr_share": round(cnt / kr * 100, 2) if kr else 0,
+            "scie": by_year_db[y].get("SCIE", 0),
+            "ssci": by_year_db[y].get("SSCI", 0),
+            "ahci": by_year_db[y].get("AHCI", 0),
+        })
+    result["sec7_1"] = {"years": year_data, "total": sum(by_year.values())}
+    print(f"  7-1 발표현황: {sum(by_year.values()):,}건")
+
+    # ── 7-2: 분야별 현황 ──
+    by_field = Counter()
+    for r in ibs_records:
+        f = r.get("std_field")
+        if f:
+            by_field[f] += 1
+    field_data = []
+    for f in ESI_22_FIELDS:
+        cnt = by_field.get(f, 0)
+        kr_cnt = kr_by_field.get(f, 1)
+        ibs_total = sum(by_field.values()) or 1
+        kr_total = sum(kr_by_field.values()) or 1
+        ibs_share = cnt / ibs_total
+        kr_share = kr_cnt / kr_total
+        rca = round(ibs_share / kr_share, 2) if kr_share > 0 else 0
+        field_data.append({
+            "field": f, "count": cnt, "rca": rca,
+            "kbsi_share": round(ibs_share * 100, 1),
+        })
+    field_data.sort(key=lambda x: x["count"], reverse=True)
+    result["sec7_2"] = {"fields": field_data}
+    print(f"  7-2 분야별: {len(field_data)}개 분야")
+
+    # ── 7-3: 영향력 분석 ──
+    tc_by_year = defaultdict(list)
+    for r in ibs_records:
+        py = r.get("PY", 0)
+        if config.start_year <= py <= config.end_year:
+            tc_by_year[py].append(r.get("TC", 0))
+
+    impact_data = []
+    for y in years:
+        tcs = tc_by_year.get(y, [])
+        avg_tc = round(sum(tcs) / len(tcs), 2) if tcs else 0
+        kr_avg = round(kr_tc_by_year.get(y, 0) / kr_by_year.get(y, 1), 2)
+        hcp_count = 0
+        if tcs:
+            sorted_tc = sorted(tcs, reverse=True)
+            top1_idx = max(1, int(len(sorted_tc) * 0.01))
+            hcp_threshold = sorted_tc[top1_idx - 1] if sorted_tc else 0
+            hcp_count = sum(1 for t in tcs if t >= hcp_threshold and t > 0)
+        impact_data.append({
+            "year": y, "avg_tc": avg_tc, "kr_avg_tc": kr_avg,
+            "total_tc": sum(tcs), "paper_count": len(tcs),
+            "hcp_count": hcp_count,
+        })
+
+    all_tcs = [r.get("TC", 0) for r in ibs_records]
+    tc_bins = [0, 1, 5, 10, 20, 50, 100, 200, 500]
+    tc_dist = []
+    for i in range(len(tc_bins)):
+        lo = tc_bins[i]
+        hi = tc_bins[i + 1] if i + 1 < len(tc_bins) else float("inf")
+        label = f"{lo}-{hi-1}" if hi != float("inf") else f"{lo}+"
+        cnt = sum(1 for t in all_tcs if lo <= t < hi)
+        tc_dist.append({"label": label, "count": cnt})
+
+    result["sec7_3"] = {"years": impact_data, "tc_distribution": tc_dist}
+    print(f"  7-3 영향력: 평균TC={round(sum(all_tcs)/max(len(all_tcs),1), 1)}")
+
+    # ── 7-4: 협력 분석 ──
+    collab_counter = Counter()
+    for r in ibs_records:
+        collab_counter[r.get("collab_type", "미분류")] += 1
+
+    ibs_collab_orgs = Counter()
+    for rec in inst_data:
+        ut = rec.get("UT", "")
+        if ut in ibs_author_uts and rec.get("org_alias") != IBS_ORG_ALIAS:
+            oa = rec.get("org_alias", "")
+            if oa:
+                ibs_collab_orgs[oa] += 1
+    top_collab = [{"org": _org_kr(o), "org_en": o, "count": c}
+                  for o, c in ibs_collab_orgs.most_common(20)]
+
+    country_counter = Counter()
+    for r in ibs_records:
+        c1 = r.get("C1", "")
+        if not c1:
+            continue
+        countries = set()
+        for block in c1.split("; "):
+            parts = block.strip().rstrip(".").split(", ")
+            if len(parts) >= 2:
+                country = parts[-1].strip().upper()
+                if country and country != "SOUTH KOREA" and len(country) >= 4:
+                    countries.add(country)
+        for c in countries:
+            country_counter[c] += 1
+    top_countries = [{"country": c, "count": n} for c, n in country_counter.most_common(15)]
+
+    result["sec7_4"] = {
+        "collab_types": dict(collab_counter),
+        "top_collab_orgs": top_collab,
+        "top_countries": top_countries,
+    }
+    print(f"  7-4 협력: {dict(collab_counter)}")
+
+    # ── 7-5: 학술지 분석 ──
+    journal_counter = Counter()
+    for r in ibs_records:
+        so = r.get("SO", "")
+        if so:
+            journal_counter[so] += 1
+    top_journals = [{"journal": j, "count": c} for j, c in journal_counter.most_common(30)]
+
+    jif_values = []
+    for r in ibs_records:
+        py = r.get("PY", 0)
+        if py not in jcr_data:
+            continue
+        sn = r.get("SN", "").strip()
+        ei = r.get("EI", "").strip()
+        jcr_yr = jcr_data[py]
+        entry = None
+        if sn and sn in jcr_yr.get("by_issn", {}):
+            entry = jcr_yr["by_issn"][sn]
+        elif ei and ei in jcr_yr.get("by_eissn", {}):
+            entry = jcr_yr["by_eissn"][ei]
+        if entry and entry.get("jif"):
+            try:
+                jif_values.append(float(entry["jif"]))
+            except (ValueError, TypeError):
+                pass
+
+    jif_bins = [0, 1, 2, 3, 5, 10, 20, 50]
+    jif_dist = []
+    for i in range(len(jif_bins)):
+        lo = jif_bins[i]
+        hi = jif_bins[i + 1] if i + 1 < len(jif_bins) else float("inf")
+        label = f"{lo}-{hi}" if hi != float("inf") else f"{lo}+"
+        cnt = sum(1 for v in jif_values if lo <= v < hi)
+        jif_dist.append({"label": label, "count": cnt})
+
+    q1_by_year = defaultdict(lambda: {"q1": 0, "total": 0})
+    for r in ibs_records:
+        py = r.get("PY", 0)
+        if py not in jcr_data:
+            continue
+        sn = r.get("SN", "").strip()
+        ei = r.get("EI", "").strip()
+        jcr_yr = jcr_data[py]
+        entry = None
+        if sn and sn in jcr_yr.get("by_issn", {}):
+            entry = jcr_yr["by_issn"][sn]
+        elif ei and ei in jcr_yr.get("by_eissn", {}):
+            entry = jcr_yr["by_eissn"][ei]
+        if entry:
+            q1_by_year[py]["total"] += 1
+            q = entry.get("quartile", "")
+            if isinstance(q, str) and q.startswith("Q1"):
+                q1_by_year[py]["q1"] += 1
+
+    q1_trend = []
+    for y in years:
+        d = q1_by_year.get(y, {"q1": 0, "total": 0})
+        ratio = round(d["q1"] / d["total"] * 100, 1) if d["total"] > 0 else 0
+        q1_trend.append({"year": y, "q1_ratio": ratio, "q1_count": d["q1"], "total": d["total"]})
+
+    result["sec7_5"] = {
+        "top_journals": top_journals,
+        "jif_distribution": jif_dist,
+        "avg_jif": round(sum(jif_values) / max(len(jif_values), 1), 2),
+        "q1_trend": q1_trend,
+    }
+    print(f"  7-5 학술지: Top1={top_journals[0]['journal'] if top_journals else 'N/A'}, 평균JIF={result['sec7_5']['avg_jif']}")
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════
+# 섹션 8: IBS 유발논문분석 (sec5와 동일 로직, IBS 데이터 적용)
+# ═══════════════════════════════════════════════════════════
+def compute_sec8(ibs_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_field,
+                 inst_data, ibs_induced_meta, ibs_pure_induced_uts, config: RunConfig):
+    print("\n=== 섹션 8: IBS 유발논문분석 ===")
+    result = {}
+    years = config.years
+
+    # ── 8-1: 유발논문 현황 ──
+    by_year = Counter()
+    by_year_db = defaultdict(lambda: Counter())
+    for r in ibs_pure_induced_records:
+        py = r.get("PY", 0)
+        if isinstance(py, int) and config.start_year <= py <= config.end_year:
+            by_year[py] += 1
+            by_year_db[py][r.get("db", "기타")] += 1
+
+    year_data = []
+    for y in years:
+        cnt = by_year.get(y, 0)
+        kr = kr_by_year.get(y, 1)
+        year_data.append({
+            "year": y, "count": cnt,
+            "kr_share": round(cnt / kr * 100, 3) if kr else 0,
+            "scie": by_year_db[y].get("SCIE", 0),
+            "ssci": by_year_db[y].get("SSCI", 0),
+            "ahci": by_year_db[y].get("AHCI", 0),
+        })
+    result["sec8_1"] = {"years": year_data, "total": sum(by_year.values())}
+    print(f"  8-1 현황: {sum(by_year.values()):,}건")
+
+    # ── 8-2: 인프라별 분석 (IBS: 단일 분류 "IBS 연구센터 지원") ──
+    infra_total = Counter()
+    infra_by_year = defaultdict(lambda: Counter())
+    for r in ibs_pure_induced_records:
+        infra = "IBS 연구센터 지원"
+        py = r.get("PY", 0)
+        if isinstance(py, int) and config.start_year <= py <= config.end_year:
+            infra_by_year[py][infra] += 1
+        infra_total[infra] += 1
+
+    infra_categories = sorted(infra_total.keys(), key=lambda x: infra_total[x], reverse=True)
+    infra_year_data = []
+    for y in years:
+        row = {"year": y}
+        for cat in infra_categories:
+            row[cat] = infra_by_year[y].get(cat, 0)
+        infra_year_data.append(row)
+
+    result["sec8_2"] = {
+        "infra_by_year": infra_year_data,
+        "infra_total": dict(infra_total),
+        "categories": infra_categories,
+    }
+    print(f"  8-2 인프라별: {dict(infra_total)}")
+
+    # ── 8-3: 수혜기관 분석 ──
+    induced_org_counter = Counter()
+    for rec in inst_data:
+        ut = rec.get("UT", "")
+        if ut in ibs_pure_induced_uts:
+            oa = rec.get("org_alias", "")
+            if oa:
+                induced_org_counter[oa] += 1
+
+    top_orgs = [{"org": _org_kr(o), "org_en": o, "count": c}
+                for o, c in induced_org_counter.most_common(30)]
+
+    org_type_by_ut = defaultdict(set)
+    for rec in inst_data:
+        ut = rec.get("UT", "")
+        if ut in ibs_pure_induced_uts:
+            itype = rec.get("institution_type_7", "기타")
+            org_type_by_ut[itype].add(ut)
+    org_type_papers = {k: len(v) for k, v in org_type_by_ut.items()}
+
+    result["sec8_3"] = {
+        "top_orgs": top_orgs,
+        "org_type_papers": org_type_papers,
+    }
+    print(f"  8-3 수혜기관: Top1={top_orgs[0]['org'] if top_orgs else 'N/A'}")
+
+    # ── 8-4: 분야별 분석 ──
+    by_field = Counter()
+    for r in ibs_pure_induced_records:
+        f = r.get("std_field")
+        if f:
+            by_field[f] += 1
+
+    field_data = []
+    ind_total = sum(by_field.values()) or 1
+    kr_total = sum(kr_by_field.values()) or 1
+    for f in ESI_22_FIELDS:
+        cnt = by_field.get(f, 0)
+        kr_cnt = kr_by_field.get(f, 1)
+        ind_share = cnt / ind_total
+        kr_share = kr_cnt / kr_total
+        rca = round(ind_share / kr_share, 2) if kr_share > 0 else 0
+        field_data.append({"field": f, "count": cnt, "rca": rca})
+    field_data.sort(key=lambda x: x["count"], reverse=True)
+    result["sec8_4"] = {"fields": field_data}
+    print(f"  8-4 분야별: {len([f for f in field_data if f['count'] > 0])}개 활성 분야")
+
+    # ── 8-5: 영향력 분석 ──
+    tc_by_year = defaultdict(list)
+    for r in ibs_pure_induced_records:
+        py = r.get("PY", 0)
+        if isinstance(py, int) and config.start_year <= py <= config.end_year:
+            tc_by_year[py].append(r.get("TC", 0))
+
+    impact_data = []
+    for y in years:
+        tcs = tc_by_year.get(y, [])
+        avg_tc = round(sum(tcs) / len(tcs), 2) if tcs else 0
+        kr_avg = round(kr_tc_by_year.get(y, 0) / kr_by_year.get(y, 1), 2)
+        hcp_count = 0
+        if tcs:
+            sorted_tc = sorted(tcs, reverse=True)
+            top1_idx = max(1, int(len(sorted_tc) * 0.01))
+            hcp_threshold = sorted_tc[top1_idx - 1] if sorted_tc else 0
+            hcp_count = sum(1 for t in tcs if t >= hcp_threshold and t > 0)
+        impact_data.append({
+            "year": y, "avg_tc": avg_tc, "kr_avg_tc": kr_avg,
+            "total_tc": sum(tcs), "paper_count": len(tcs), "hcp_count": hcp_count,
+        })
+    result["sec8_5"] = {"years": impact_data}
+    print(f"  8-5 영향력")
+
+    # ── 8-6: 협력 네트워크 ──
+    collab_counter = Counter()
+    for r in ibs_pure_induced_records:
+        collab_counter[r.get("collab_type", "미분류")] += 1
+
+    country_counter = Counter()
+    for r in ibs_pure_induced_records:
+        c1 = r.get("C1", "")
+        if not c1:
+            continue
+        countries = set()
+        for block in c1.split("; "):
+            parts = block.strip().rstrip(".").split(", ")
+            if len(parts) >= 2:
+                country = parts[-1].strip().upper()
+                if country and country != "SOUTH KOREA" and len(country) >= 4:
+                    countries.add(country)
+        for c in countries:
+            country_counter[c] += 1
+    top_countries = [{"country": c, "count": n} for c, n in country_counter.most_common(15)]
+
+    result["sec8_6"] = {
+        "collab_types": dict(collab_counter),
+        "top_countries": top_countries,
+    }
+    print(f"  8-6 협력: {dict(collab_counter)}")
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════
+# 섹션 9: KISTI vs IBS 비교 (sec6_1~6_3 복제, sec6_4 인력생산성 제외)
+# ═══════════════════════════════════════════════════════════
+def compute_sec9(kisti_records, pure_induced_records,
+                 ibs_records, ibs_pure_induced_records,
+                 kr_by_year, kr_tc_by_year, jcr_data, config: RunConfig):
+    print("\n=== 섹션 9: KISTI vs IBS 비교 ===")
+    result = {}
+    years = config.years
+
+    def _stats(records):
+        total = len(records)
+        tcs = [r.get("TC", 0) for r in records]
+        avg_tc = round(sum(tcs) / max(total, 1), 2)
+        q1, jcr_matched = 0, 0
+        for r in records:
+            py = r.get("PY", 0)
+            if py not in jcr_data:
+                continue
+            sn = r.get("SN", "").strip()
+            ei = r.get("EI", "").strip()
+            jcr_yr = jcr_data[py]
+            entry = None
+            if sn and sn in jcr_yr.get("by_issn", {}):
+                entry = jcr_yr["by_issn"][sn]
+            elif ei and ei in jcr_yr.get("by_eissn", {}):
+                entry = jcr_yr["by_eissn"][ei]
+            if entry:
+                jcr_matched += 1
+                q = entry.get("quartile", "")
+                if isinstance(q, str) and q.startswith("Q1"):
+                    q1 += 1
+        q1_ratio = round(q1 / max(jcr_matched, 1) * 100, 1)
+        return {"papers": total, "avg_tc": avg_tc, "total_tc": sum(tcs), "q1_ratio": q1_ratio}
+
+    # ── 9-1: 직접 논문 비교 ──
+    kisti_stats = _stats(kisti_records)
+    ibs_stats = _stats(ibs_records)
+    result["sec9_1"] = {"kisti": kisti_stats, "ibs": ibs_stats}
+    print(f"  9-1 직접비교: KISTI={kisti_stats['papers']}, IBS={ibs_stats['papers']}")
+
+    # ── 9-2: 유발논문 비교 ──
+    kisti_ind_stats = _stats(pure_induced_records)
+    ibs_ind_stats = _stats(ibs_pure_induced_records)
+    result["sec9_2"] = {"kisti_induced": kisti_ind_stats, "ibs_induced": ibs_ind_stats}
+    print(f"  9-2 유발비교: KISTI유발={kisti_ind_stats['papers']}, IBS유발={ibs_ind_stats['papers']}")
+
+    # ── 9-3: 4자 종합 비교 + 연도별 추이 ──
+    combined_data = []
+    for y in years:
+        k_cnt = sum(1 for r in kisti_records if r.get("PY") == y)
+        ki_cnt = sum(1 for r in pure_induced_records
+                     if isinstance(r.get("PY"), int) and r.get("PY") == y)
+        i_cnt = sum(1 for r in ibs_records if r.get("PY") == y)
+        ii_cnt = sum(1 for r in ibs_pure_induced_records
+                     if isinstance(r.get("PY"), int) and r.get("PY") == y)
+        kr = kr_by_year.get(y, 1)
+        combined_data.append({
+            "year": y,
+            "kisti": k_cnt, "kisti_induced": ki_cnt,
+            "ibs": i_cnt, "ibs_induced": ii_cnt,
+            "kisti_total": k_cnt + ki_cnt,
+            "ibs_total": i_cnt + ii_cnt,
+            "kisti_kr_share": round((k_cnt + ki_cnt) / kr * 100, 3) if kr else 0,
+            "ibs_kr_share": round((i_cnt + ii_cnt) / kr * 100, 3) if kr else 0,
+        })
+
+    # 연도별 평균TC 추이
+    def _year_avg_tc(records):
+        tc_by_y = defaultdict(list)
+        for r in records:
+            py = r.get("PY", 0)
+            if isinstance(py, int) and config.start_year <= py <= config.end_year:
+                tc_by_y[py].append(r.get("TC", 0))
+        return {y: round(sum(tcs)/max(len(tcs),1), 2) for y, tcs in tc_by_y.items()}
+
+    kisti_tc_trend = _year_avg_tc(kisti_records)
+    ibs_tc_trend = _year_avg_tc(ibs_records)
+    kisti_ind_tc_trend = _year_avg_tc(pure_induced_records)
+    ibs_ind_tc_trend = _year_avg_tc(ibs_pure_induced_records)
+
+    tc_trend_data = []
+    for y in years:
+        kr_avg = round(kr_tc_by_year.get(y, 0) / kr_by_year.get(y, 1), 2)
+        tc_trend_data.append({
+            "year": y,
+            "kisti_avg_tc": kisti_tc_trend.get(y, 0),
+            "ibs_avg_tc": ibs_tc_trend.get(y, 0),
+            "kisti_ind_avg_tc": kisti_ind_tc_trend.get(y, 0),
+            "ibs_ind_avg_tc": ibs_ind_tc_trend.get(y, 0),
+            "kr_avg_tc": kr_avg,
+        })
+
+    result["sec9_3"] = {
+        "years": combined_data,
+        "tc_trend": tc_trend_data,
+        "summary": {
+            "kisti": kisti_stats, "kisti_induced": kisti_ind_stats,
+            "ibs": ibs_stats, "ibs_induced": ibs_ind_stats,
+        },
+    }
+    print(f"  9-3 종합비교")
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════
+# 섹션 10: PAL(포항가속기연구소) 유발논문분석 (sec5/sec8와 동일 로직)
+# ═══════════════════════════════════════════════════════════
+def compute_sec10(pal_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_field,
+                  inst_data, pal_induced_meta, pal_pure_induced_uts, config: RunConfig):
+    print("\n=== 섹션 10: PAL 유발논문분석 ===")
+    result = {}
+    years = config.years
+
+    # ── 10-1: 유발논문 현황 ──
+    by_year = Counter()
+    by_year_db = defaultdict(lambda: Counter())
+    for r in pal_pure_induced_records:
+        py = r.get("PY", 0)
+        if isinstance(py, int) and config.start_year <= py <= config.end_year:
+            by_year[py] += 1
+            by_year_db[py][r.get("db", "기타")] += 1
+
+    year_data = []
+    for y in years:
+        cnt = by_year.get(y, 0)
+        kr = kr_by_year.get(y, 1)
+        year_data.append({
+            "year": y, "count": cnt,
+            "kr_share": round(cnt / kr * 100, 3) if kr else 0,
+            "scie": by_year_db[y].get("SCIE", 0),
+            "ssci": by_year_db[y].get("SSCI", 0),
+            "ahci": by_year_db[y].get("AHCI", 0),
+        })
+    result["sec10_1"] = {"years": year_data, "total": sum(by_year.values())}
+    print(f"  10-1 현황: {sum(by_year.values()):,}건")
+
+    # ── 10-2: 인프라별 분석 (PAL: 단일 분류 "PAL 방사광 가속기 지원") ──
+    infra_total = Counter()
+    infra_by_year = defaultdict(lambda: Counter())
+    for r in pal_pure_induced_records:
+        infra = "PAL 방사광 가속기 지원"
+        py = r.get("PY", 0)
+        if isinstance(py, int) and config.start_year <= py <= config.end_year:
+            infra_by_year[py][infra] += 1
+        infra_total[infra] += 1
+
+    infra_categories = sorted(infra_total.keys(), key=lambda x: infra_total[x], reverse=True)
+    infra_year_data = []
+    for y in years:
+        row = {"year": y}
+        for cat in infra_categories:
+            row[cat] = infra_by_year[y].get(cat, 0)
+        infra_year_data.append(row)
+
+    result["sec10_2"] = {
+        "infra_by_year": infra_year_data,
+        "infra_total": dict(infra_total),
+        "categories": infra_categories,
+    }
+    print(f"  10-2 인프라별: {dict(infra_total)}")
+
+    # ── 10-3: 수혜기관 분석 ──
+    induced_org_counter = Counter()
+    for rec in inst_data:
+        ut = rec.get("UT", "")
+        if ut in pal_pure_induced_uts:
+            oa = rec.get("org_alias", "")
+            if oa:
+                induced_org_counter[oa] += 1
+
+    top_orgs = [{"org": _org_kr(o), "org_en": o, "count": c}
+                for o, c in induced_org_counter.most_common(30)]
+
+    org_type_by_ut = defaultdict(set)
+    for rec in inst_data:
+        ut = rec.get("UT", "")
+        if ut in pal_pure_induced_uts:
+            itype = rec.get("institution_type_7", "기타")
+            org_type_by_ut[itype].add(ut)
+    org_type_papers = {k: len(v) for k, v in org_type_by_ut.items()}
+
+    result["sec10_3"] = {
+        "top_orgs": top_orgs,
+        "org_type_papers": org_type_papers,
+    }
+    print(f"  10-3 수혜기관: Top1={top_orgs[0]['org'] if top_orgs else 'N/A'}")
+
+    # ── 10-4: 분야별 분석 ──
+    by_field = Counter()
+    for r in pal_pure_induced_records:
+        f = r.get("std_field")
+        if f:
+            by_field[f] += 1
+
+    field_data = []
+    ind_total = sum(by_field.values()) or 1
+    kr_total = sum(kr_by_field.values()) or 1
+    for f in ESI_22_FIELDS:
+        cnt = by_field.get(f, 0)
+        kr_cnt = kr_by_field.get(f, 1)
+        ind_share = cnt / ind_total
+        kr_share = kr_cnt / kr_total
+        rca = round(ind_share / kr_share, 2) if kr_share > 0 else 0
+        field_data.append({"field": f, "count": cnt, "rca": rca})
+    field_data.sort(key=lambda x: x["count"], reverse=True)
+    result["sec10_4"] = {"fields": field_data}
+    print(f"  10-4 분야별: {len([f for f in field_data if f['count'] > 0])}개 활성 분야")
+
+    # ── 10-5: 영향력 분석 ──
+    tc_by_year = defaultdict(list)
+    for r in pal_pure_induced_records:
+        py = r.get("PY", 0)
+        if isinstance(py, int) and config.start_year <= py <= config.end_year:
+            tc_by_year[py].append(r.get("TC", 0))
+
+    impact_data = []
+    for y in years:
+        tcs = tc_by_year.get(y, [])
+        avg_tc = round(sum(tcs) / len(tcs), 2) if tcs else 0
+        kr_avg = round(kr_tc_by_year.get(y, 0) / kr_by_year.get(y, 1), 2)
+        hcp_count = 0
+        if tcs:
+            sorted_tc = sorted(tcs, reverse=True)
+            top1_idx = max(1, int(len(sorted_tc) * 0.01))
+            hcp_threshold = sorted_tc[top1_idx - 1] if sorted_tc else 0
+            hcp_count = sum(1 for t in tcs if t >= hcp_threshold and t > 0)
+        impact_data.append({
+            "year": y, "avg_tc": avg_tc, "kr_avg_tc": kr_avg,
+            "total_tc": sum(tcs), "paper_count": len(tcs), "hcp_count": hcp_count,
+        })
+    result["sec10_5"] = {"years": impact_data}
+    print(f"  10-5 영향력")
+
+    # ── 10-6: 협력 네트워크 ──
+    collab_counter = Counter()
+    for r in pal_pure_induced_records:
+        collab_counter[r.get("collab_type", "미분류")] += 1
+
+    country_counter = Counter()
+    for r in pal_pure_induced_records:
+        c1 = r.get("C1", "")
+        if not c1:
+            continue
+        countries = set()
+        for block in c1.split("; "):
+            parts = block.strip().rstrip(".").split(", ")
+            if len(parts) >= 2:
+                country = parts[-1].strip().upper()
+                if country and country != "SOUTH KOREA" and len(country) >= 4:
+                    countries.add(country)
+        for c in countries:
+            country_counter[c] += 1
+    top_countries = [{"country": c, "count": n} for c, n in country_counter.most_common(15)]
+
+    result["sec10_6"] = {
+        "collab_types": dict(collab_counter),
+        "top_countries": top_countries,
+    }
+    print(f"  10-6 협력: {dict(collab_counter)}")
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════
+# 섹션 11: 질적 우수성 종합 비교
+# ═══════════════════════════════════════════════════════════
+
+def compute_sec11(kisti_records, pure_induced_records,
+                  kbsi_records, kbsi_pure_induced_records,
+                  ibs_records, ibs_pure_induced_records,
+                  pal_pure_induced_records,
+                  kr_by_year, kr_tc_by_year, jcr_data,
+                  kr_top10p_by_year, kr_top10p_by_year_field,
+                  kr_avg_tc_by_year_field, sec2_7,
+                  config: RunConfig):
+    """질적 우수성 종합 비교 — 4개 기관 질적 지표 일괄 비교"""
+    print("\n=== 섹션 11: 질적 우수성 종합 비교 ===")
+    result = {}
+    years = config.years
+
+    # ── 공통 유틸 ──
+    def _avg_tc(records):
+        if not records:
+            return 0.0
+        tcs = [r.get("TC", 0) for r in records]
+        return round(sum(tcs) / len(tcs), 2)
+
+    def _top10p_ratio(records, thresholds):
+        if not thresholds or not records:
+            return 0.0, 0, len(records)
+        top10_cnt = 0
+        for r in records:
+            py = r.get("PY", 0)
+            tc = r.get("TC", 0)
+            thr = thresholds.get(py, float("inf"))
+            if tc >= thr and tc > 0:
+                top10_cnt += 1
+        total = len(records)
+        return round(top10_cnt / max(total, 1) * 100, 1), top10_cnt, total
+
+    def _top10p_field_ratio(records, thresholds_yf):
+        if not thresholds_yf or not records:
+            return 0.0, 0, len(records)
+        top10_cnt = 0
+        valid_cnt = 0
+        for r in records:
+            py = r.get("PY", 0)
+            f = r.get("std_field")
+            if not f:
+                continue
+            valid_cnt += 1
+            tc = r.get("TC", 0)
+            yr_fields = thresholds_yf.get(py, {})
+            thr = yr_fields.get(f, float("inf"))
+            if tc >= thr and tc > 0:
+                top10_cnt += 1
+        return round(top10_cnt / max(valid_cnt, 1) * 100, 1), top10_cnt, valid_cnt
+
+    def _q1_ratio(records):
+        q1, matched = 0, 0
+        for r in records:
+            py = r.get("PY", 0)
+            if py not in jcr_data:
+                continue
+            sn = r.get("SN", "").strip()
+            ei = r.get("EI", "").strip()
+            jcr_yr = jcr_data[py]
+            entry = None
+            if sn and sn in jcr_yr.get("by_issn", {}):
+                entry = jcr_yr["by_issn"][sn]
+            elif ei and ei in jcr_yr.get("by_eissn", {}):
+                entry = jcr_yr["by_eissn"][ei]
+            if not entry:
+                continue
+            matched += 1
+            q = entry.get("quartile", "")
+            if isinstance(q, str) and q.startswith("Q1"):
+                q1 += 1
+        return round(q1 / max(matched, 1) * 100, 1), q1, matched
+
+    def _mncs(records):
+        if not kr_avg_tc_by_year_field or not records:
+            return None, 0
+        total_ncs = 0.0
+        valid = 0
+        for r in records:
+            py = r.get("PY", 0)
+            f = r.get("std_field")
+            if not f:
+                continue
+            kr_avg = (kr_avg_tc_by_year_field.get(py, {}) or {}).get(f, 0)
+            if kr_avg <= 0:
+                continue
+            valid += 1
+            total_ncs += r.get("TC", 0) / kr_avg
+        if valid == 0:
+            return None, 0
+        return round(total_ncs / valid, 3), valid
+
+    # ── 기관별 질적 지표 계산 ──
+    institutions = []
+    all_sets = [
+        ("KISTI", "직접", kisti_records),
+        ("KISTI", "유발", pure_induced_records),
+        ("KBSI", "직접", kbsi_records),
+        ("KBSI", "유발", kbsi_pure_induced_records),
+        ("IBS", "직접", ibs_records),
+        ("IBS", "유발", ibs_pure_induced_records),
+        ("PAL", "유발", pal_pure_induced_records),
+    ]
+
+    for name, ptype, records in all_sets:
+        avg_tc = _avg_tc(records)
+        t10_ratio, t10_cnt, t10_total = _top10p_ratio(records, kr_top10p_by_year)
+        ft10_ratio, ft10_cnt, ft10_valid = _top10p_field_ratio(records, kr_top10p_by_year_field)
+        q1_ratio, q1_cnt, q1_matched = _q1_ratio(records)
+        mncs_val, mncs_valid = _mncs(records)
+
+        institutions.append({
+            "name": name,
+            "type": ptype,
+            "papers": len(records),
+            "avg_tc": avg_tc,
+            "mncs": mncs_val,
+            "mncs_matched": mncs_valid,
+            "top10p_ratio": t10_ratio,
+            "top10p_count": t10_cnt,
+            "ftop10p_ratio": ft10_ratio,
+            "ftop10p_count": ft10_cnt,
+            "q1_ratio": q1_ratio,
+            "q1_count": q1_cnt,
+            "q1_matched": q1_matched,
+        })
+        print(f"  {name} {ptype}: {len(records):,}건, "
+              f"평균TC={avg_tc}, MNCS={mncs_val}, "
+              f"상위10%(분야)={ft10_ratio}%, Q1={q1_ratio}%")
+
+    # ── 레버리지 (유발/직접 비율) ──
+    leverage = []
+    for name, direct, induced in [
+        ("KISTI", kisti_records, pure_induced_records),
+        ("KBSI", kbsi_records, kbsi_pure_induced_records),
+        ("IBS", ibs_records, ibs_pure_induced_records),
+    ]:
+        d_cnt = len(direct)
+        i_cnt = len(induced)
+        leverage.append({
+            "name": name,
+            "direct": d_cnt,
+            "induced": i_cnt,
+            "combined": d_cnt + i_cnt,
+            "ratio": round(i_cnt / max(d_cnt, 1), 2),
+        })
+
+    # ── 예산 효율 (sec2_7에서 가져옴) ──
+    budget = None
+    if sec2_7:
+        bn = sec2_7.get("budget_normalized", {})
+        budget = {
+            "annual_budget_10b": bn.get("kisti_annual_10b"),
+            "papers_per_10b_yr": bn.get("papers_per_10b_yr"),
+            "citations_per_10b_yr": bn.get("citations_per_10b_yr"),
+            "mncs": sec2_7.get("mncs"),
+            "roi_low": sec2_7.get("roi_low"),
+            "roi_high": sec2_7.get("roi_high"),
+        }
+
+    # ── 연도별 평균TC 추이 (4기관 직접+유발) ──
+    def _tc_by_year(records):
+        by_y = defaultdict(list)
+        for r in records:
+            by_y[r.get("PY", 0)].append(r.get("TC", 0))
+        return by_y
+
+    k_tc = _tc_by_year(kisti_records)
+    ki_tc = _tc_by_year(pure_induced_records)
+    b_tc = _tc_by_year(kbsi_records)
+    bi_tc = _tc_by_year(kbsi_pure_induced_records)
+    ibs_tc = _tc_by_year(ibs_records)
+    ibsi_tc = _tc_by_year(ibs_pure_induced_records)
+    pal_tc = _tc_by_year(pal_pure_induced_records)
+
+    def _yr_avg(tc_dict, y):
+        tcs = tc_dict.get(y, [])
+        return round(sum(tcs) / len(tcs), 2) if tcs else 0
+
+    tc_trend = []
+    for y in years:
+        kr_avg = round((kr_tc_by_year.get(y, 0)) / max(kr_by_year.get(y, 1), 1), 2)
+        tc_trend.append({
+            "year": y,
+            "kr_avg_tc": kr_avg,
+            "kisti_direct": _yr_avg(k_tc, y),
+            "kisti_induced": _yr_avg(ki_tc, y),
+            "kbsi_direct": _yr_avg(b_tc, y),
+            "kbsi_induced": _yr_avg(bi_tc, y),
+            "ibs_direct": _yr_avg(ibs_tc, y),
+            "ibs_induced": _yr_avg(ibsi_tc, y),
+            "pal_induced": _yr_avg(pal_tc, y),
+        })
+
+    result["sec11_1"] = {
+        "institutions": institutions,
+        "leverage": leverage,
+        "budget": budget,
+        "tc_trend": tc_trend,
+    }
+
+    print(f"  11-1 질적비교: {len(institutions)}개 기관·유형")
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════
 # 논문별 레코드 빌드 (프론트엔드 논문관리 페이지용)
 # ═══════════════════════════════════════════════════════════
 def _lookup_jif(r, jcr_data):
@@ -2159,6 +3097,8 @@ def _extract_orgs(ut, inst_data_by_ut):
 
 def build_paper_records(kisti_records, pure_induced_records,
                         kbsi_records, kbsi_pure_induced_records,
+                        ibs_records, ibs_pure_induced_records,
+                        pal_pure_induced_records,
                         inst_data, jcr_data):
     """논문별 레코드 빌드 (프론트엔드 테이블/모달용)"""
     print("\n=== 논문별 레코드 빌드 ===")
@@ -2229,8 +3169,20 @@ def build_paper_records(kisti_records, pure_induced_records,
         lambda kws: "KBSI 분석장비 지원",
         "KBSI"
     )
+    ibs_papers = _build_direct_papers(ibs_records, "IBS")
+    ibs_induced_papers_recs = _build_induced_papers(
+        ibs_pure_induced_records,
+        lambda kws: "IBS 연구센터 지원",
+        "IBS"
+    )
+    pal_induced_papers_recs = _build_induced_papers(
+        pal_pure_induced_records,
+        lambda kws: "PAL 방사광 가속기 지원",
+        "PAL"
+    )
 
-    return kisti_papers, induced_papers, kbsi_papers, kbsi_induced_papers_recs
+    return (kisti_papers, induced_papers, kbsi_papers, kbsi_induced_papers_recs,
+            ibs_papers, ibs_induced_papers_recs, pal_induced_papers_recs)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -2250,12 +3202,15 @@ def main():
     print(f"출력: {config.output}")
     print("=" * 60)
 
-    wos_data, inst_data, jcr_data, induced_papers, kbsi_induced_papers, gri_personnel = load_data(config)
+    wos_data, inst_data, jcr_data, induced_papers, kbsi_induced_papers, ibs_induced_papers, pal_induced_papers, gri_personnel = load_data(config)
     (wos_by_ut, kisti_records, pure_induced_records, induced_meta,
      kisti_author_uts, pure_induced_uts,
      kbsi_records, kbsi_pure_induced_records, kbsi_induced_meta,
-     kbsi_author_uts, kbsi_pure_induced_uts) = classify_papers(
-        wos_data, inst_data, induced_papers, kbsi_induced_papers
+     kbsi_author_uts, kbsi_pure_induced_uts,
+     ibs_records, ibs_pure_induced_records, ibs_induced_meta,
+     ibs_author_uts, ibs_pure_induced_uts,
+     pal_pure_induced_records, pal_induced_meta, pal_pure_induced_uts) = classify_papers(
+        wos_data, inst_data, induced_papers, kbsi_induced_papers, ibs_induced_papers, pal_induced_papers
     )
     (kr_by_year, kr_tc_by_year, kr_by_field, kr_count,
      kr_top10p_by_year, kr_top10p_by_year_field,
@@ -2280,11 +3235,31 @@ def main():
                         kr_by_year, kr_tc_by_year, jcr_data,
                         gri_personnel, kr_top10p_by_year,
                         kr_top10p_by_year_field, config)
+    sec7 = compute_sec7(ibs_records, kr_by_year, kr_tc_by_year, kr_by_field,
+                        inst_data, jcr_data, wos_by_ut, ibs_author_uts, config)
+    sec8 = compute_sec8(ibs_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_field,
+                        inst_data, ibs_induced_meta, ibs_pure_induced_uts, config)
+    sec9 = compute_sec9(kisti_records, pure_induced_records,
+                        ibs_records, ibs_pure_induced_records,
+                        kr_by_year, kr_tc_by_year, jcr_data, config)
+    sec10 = compute_sec10(pal_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_field,
+                          inst_data, pal_induced_meta, pal_pure_induced_uts, config)
+    sec11 = compute_sec11(kisti_records, pure_induced_records,
+                          kbsi_records, kbsi_pure_induced_records,
+                          ibs_records, ibs_pure_induced_records,
+                          pal_pure_induced_records,
+                          kr_by_year, kr_tc_by_year, jcr_data,
+                          kr_top10p_by_year, kr_top10p_by_year_field,
+                          kr_avg_tc_by_year_field, sec2.get("sec2_7"),
+                          config)
 
     # 논문별 레코드 빌드
-    kisti_paper_recs, induced_paper_recs, kbsi_paper_recs, kbsi_induced_paper_recs = \
+    (kisti_paper_recs, induced_paper_recs, kbsi_paper_recs, kbsi_induced_paper_recs,
+     ibs_paper_recs, ibs_induced_paper_recs, pal_induced_paper_recs) = \
         build_paper_records(kisti_records, pure_induced_records,
                            kbsi_records, kbsi_pure_induced_records,
+                           ibs_records, ibs_pure_induced_records,
+                           pal_pure_induced_records,
                            inst_data, jcr_data)
 
     # 요약 카드 데이터
@@ -2302,6 +3277,15 @@ def main():
         "kbsi_induced_avg_tc": round(sum(r.get("TC", 0) for r in kbsi_pure_induced_records) / max(len(kbsi_pure_induced_records), 1), 1),
         "kbsi_kr_share": round(len(kbsi_records) / max(kr_count, 1) * 100, 2),
         "kbsi_combined_kr_share": round((len(kbsi_records) + len(kbsi_pure_induced_records)) / max(kr_count, 1) * 100, 2),
+        "ibs_papers": len(ibs_records),
+        "ibs_induced_papers": len(ibs_pure_induced_records),
+        "ibs_avg_tc": round(sum(r.get("TC", 0) for r in ibs_records) / max(len(ibs_records), 1), 1),
+        "ibs_induced_avg_tc": round(sum(r.get("TC", 0) for r in ibs_pure_induced_records) / max(len(ibs_pure_induced_records), 1), 1),
+        "ibs_kr_share": round(len(ibs_records) / max(kr_count, 1) * 100, 2),
+        "ibs_combined_kr_share": round((len(ibs_records) + len(ibs_pure_induced_records)) / max(kr_count, 1) * 100, 2),
+        "pal_induced_papers": len(pal_pure_induced_records),
+        "pal_induced_avg_tc": round(sum(r.get("TC", 0) for r in pal_pure_induced_records) / max(len(pal_pure_induced_records), 1), 1),
+        "pal_induced_kr_share": round(len(pal_pure_induced_records) / max(kr_count, 1) * 100, 2),
     }
 
     data_cache = {
@@ -2321,11 +3305,19 @@ def main():
         **sec4,
         **sec5,
         **sec6,
+        **sec7,
+        **sec8,
+        **sec9,
+        **sec10,
+        **sec11,
         "papers": {
             "kisti": kisti_paper_recs,
             "induced": induced_paper_recs,
             "kbsi": kbsi_paper_recs,
             "kbsi_induced": kbsi_induced_paper_recs,
+            "ibs": ibs_paper_recs,
+            "ibs_induced": ibs_induced_paper_recs,
+            "pal_induced": pal_induced_paper_recs,
         },
         "korea": {
             "by_year": kr_by_year,
@@ -2333,6 +3325,7 @@ def main():
             "by_field": kr_by_field,
             "top10p_by_year": kr_top10p_by_year,
             "top10p_by_year_field": kr_top10p_by_year_field,
+            "avg_tc_by_year_field": kr_avg_tc_by_year_field,
         },
     }
 

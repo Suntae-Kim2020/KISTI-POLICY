@@ -618,6 +618,46 @@ mark.hl-kbsi { background: rgba(76,175,80,0.35); color: var(--green); border-rad
         <a class="nav-item" data-page="sec6_3" onclick="showPage('sec6_3')">6-3. 종합 비교</a>
         <a class="nav-item" data-page="sec6_4" onclick="showPage('sec6_4')">6-4. 인력 생산성 분석</a>
         </div>
+
+        <div class="section-title collapsed" onclick="toggleSection(this)">7. IBS 논문분석</div>
+        <div class="nav-group collapsed">
+        <a class="nav-item" data-page="sec7_1" onclick="showPage('sec7_1')">7-1. 발표 현황</a>
+        <a class="nav-item" data-page="sec7_2" onclick="showPage('sec7_2')">7-2. 분야별 현황</a>
+        <a class="nav-item" data-page="sec7_3" onclick="showPage('sec7_3')">7-3. 영향력 분석</a>
+        <a class="nav-item" data-page="sec7_4" onclick="showPage('sec7_4')">7-4. 협력 분석</a>
+        <a class="nav-item" data-page="sec7_5" onclick="showPage('sec7_5')">7-5. 학술지 분석</a>
+        </div>
+
+        <div class="section-title collapsed" onclick="toggleSection(this)">8. IBS 유발논문분석</div>
+        <div class="nav-group collapsed">
+        <a class="nav-item" data-page="sec8_1" onclick="showPage('sec8_1')">8-1. 유발논문 현황</a>
+        <a class="nav-item" data-page="sec8_2" onclick="showPage('sec8_2')">8-2. 인프라별 분석</a>
+        <a class="nav-item" data-page="sec8_3" onclick="showPage('sec8_3')">8-3. 수혜기관 분석</a>
+        <a class="nav-item" data-page="sec8_4" onclick="showPage('sec8_4')">8-4. 분야별 분석</a>
+        <a class="nav-item" data-page="sec8_5" onclick="showPage('sec8_5')">8-5. 영향력 분석</a>
+        <a class="nav-item" data-page="sec8_6" onclick="showPage('sec8_6')">8-6. 협력 네트워크</a>
+        </div>
+
+        <div class="section-title collapsed" onclick="toggleSection(this)">9. KISTI vs IBS 비교</div>
+        <div class="nav-group collapsed">
+        <a class="nav-item" data-page="sec9_1" onclick="showPage('sec9_1')">9-1. 직접 논문 비교</a>
+        <a class="nav-item" data-page="sec9_2" onclick="showPage('sec9_2')">9-2. 유발논문 비교</a>
+        <a class="nav-item" data-page="sec9_3" onclick="showPage('sec9_3')">9-3. 종합 비교</a>
+        </div>
+
+        <div class="section-title collapsed" onclick="toggleSection(this)">10. PAL 유발논문분석</div>
+        <div class="nav-group collapsed">
+        <a class="nav-item" data-page="sec10_1" onclick="showPage('sec10_1')">10-1. 유발논문 현황</a>
+        <a class="nav-item" data-page="sec10_2" onclick="showPage('sec10_2')">10-2. 인프라별 분석</a>
+        <a class="nav-item" data-page="sec10_3" onclick="showPage('sec10_3')">10-3. 수혜기관 분석</a>
+        <a class="nav-item" data-page="sec10_4" onclick="showPage('sec10_4')">10-4. 분야별 분석</a>
+        <a class="nav-item" data-page="sec10_5" onclick="showPage('sec10_5')">10-5. 영향력 분석</a>
+        <a class="nav-item" data-page="sec10_6" onclick="showPage('sec10_6')">10-6. 협력 네트워크</a>
+        </div>
+        <div class="section-title collapsed" onclick="toggleSection(this)">11. 질적 우수성 종합</div>
+        <div class="nav-group collapsed">
+        <a class="nav-item" data-page="sec11_1" onclick="showPage('sec11_1')">11-1. 질적 우수성 종합 비교</a>
+        </div>
     </nav>
     <div class="main" id="mainContent">
         <div class="loading" id="globalLoading"><div class="spinner"></div>데이터 로딩 중...</div>
@@ -650,7 +690,10 @@ let PAPERS_KISTI = [];
 let PAPERS_INDUCED = [];
 let PAPERS_KBSI = [];
 let PAPERS_KBSI_INDUCED = [];
-let EXCLUSIONS = { kisti: new Set(), induced: new Set(), kbsi: new Set(), kbsi_induced: new Set() };
+let PAPERS_IBS = [];
+let PAPERS_IBS_INDUCED = [];
+let PAPERS_PAL_INDUCED = [];
+let EXCLUSIONS = { kisti: new Set(), induced: new Set(), kbsi: new Set(), kbsi_induced: new Set(), ibs: new Set(), ibs_induced: new Set(), pal_induced: new Set() };
 let KOREA = {};
 const charts = {};
 const rendered = {};
@@ -821,7 +864,14 @@ function showPage(pageId) {
 
 function renderPage(id) {
     const fn = renderers[id];
-    if (fn) fn(DATA);
+    if (fn) {
+        try { fn(DATA); }
+        catch(e) {
+            console.error('renderPage error:', id, e);
+            const el = document.getElementById('page-' + id);
+            if (el) el.innerHTML = '<div style="color:var(--red);padding:24px;">렌더링 오류: ' + id + ' — ' + e.message + '</div>';
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -879,7 +929,12 @@ async function exportAll() {
         'sec3_1','sec3_2','sec3_3',
         'sec4_1','sec4_2','sec4_3','sec4_4','sec4_5',
         'sec5_1','sec5_2','sec5_3','sec5_4','sec5_5','sec5_6',
-        'sec6_1','sec6_2','sec6_3','sec6_4'
+        'sec6_1','sec6_2','sec6_3','sec6_4',
+        'sec7_1','sec7_2','sec7_3','sec7_4','sec7_5',
+        'sec8_1','sec8_2','sec8_3','sec8_4','sec8_5','sec8_6',
+        'sec9_1','sec9_2','sec9_3',
+        'sec10_1','sec10_2','sec10_3','sec10_4','sec10_5','sec10_6',
+        'sec11_1'
     ];
 
     // 현재 상태 저장
@@ -1094,6 +1149,9 @@ async function init() {
         EXCLUSIONS.induced = new Set(excl.induced || []);
         EXCLUSIONS.kbsi = new Set(excl.kbsi || []);
         EXCLUSIONS.kbsi_induced = new Set(excl.kbsi_induced || []);
+        EXCLUSIONS.ibs = new Set(excl.ibs || []);
+        EXCLUSIONS.ibs_induced = new Set(excl.ibs_induced || []);
+        EXCLUSIONS.pal_induced = new Set(excl.pal_induced || []);
         _populateVersionSelect();
     } catch(e) {
         document.getElementById('globalLoading').innerHTML = '<span style="color:var(--red)">데이터 로딩 실패: ' + e.message + '</span>';
@@ -1102,7 +1160,7 @@ async function init() {
     _applyDataGlobals();
     document.getElementById('globalLoading').style.display = 'none';
     buildPages();
-    if (EXCLUSIONS.kisti.size > 0 || EXCLUSIONS.induced.size > 0 || EXCLUSIONS.kbsi.size > 0 || EXCLUSIONS.kbsi_induced.size > 0) {
+    if (EXCLUSIONS.kisti.size > 0 || EXCLUSIONS.induced.size > 0 || EXCLUSIONS.kbsi.size > 0 || EXCLUSIONS.kbsi_induced.size > 0 || EXCLUSIONS.ibs.size > 0 || EXCLUSIONS.ibs_induced.size > 0) {
         recomputeAllStats(PERIOD.start, PERIOD.end);
     }
     showPage('overview');
@@ -1131,6 +1189,9 @@ function _applyDataGlobals() {
     PAPERS_INDUCED = DATA.papers ? DATA.papers.induced : [];
     PAPERS_KBSI = DATA.papers ? (DATA.papers.kbsi || []) : [];
     PAPERS_KBSI_INDUCED = DATA.papers ? (DATA.papers.kbsi_induced || []) : [];
+    PAPERS_IBS = DATA.papers ? (DATA.papers.ibs || []) : [];
+    PAPERS_IBS_INDUCED = DATA.papers ? (DATA.papers.ibs_induced || []) : [];
+    PAPERS_PAL_INDUCED = DATA.papers ? (DATA.papers.pal_induced || []) : [];
     if (DATA.sec6_4) ORIG_DATA.sec6_4 = JSON.parse(JSON.stringify(DATA.sec6_4));
     KOREA = DATA.korea || {};
     // PERIOD 설정
@@ -1140,7 +1201,7 @@ function _applyDataGlobals() {
         document.getElementById('startYearInput').value = PERIOD.start;
         document.getElementById('endYearInput').value = PERIOD.end;
         document.getElementById('headerSubtitle').textContent =
-            'KISTI\xb7KBSI 논문 성과 및 인프라 유발 효과 비교 분석 (' + PERIOD.start + '-' + PERIOD.end + ') \u2014 데이터 v' + DATA._meta.data_version;
+            'KISTI\xb7KBSI\xb7IBS 논문 성과 및 인프라 유발 효과 비교 분석 (' + PERIOD.start + '-' + PERIOD.end + ') \u2014 데이터 v' + DATA._meta.data_version;
     }
 }
 
@@ -1152,7 +1213,8 @@ function onVersionSelect(ver) {
         statusEl.className = 'ver-status ver-cached';
         statusEl.textContent = '생성됨';
         btnGen.style.display = 'none';
-        // 이미 생성된 버전 → 바로 전환
+        // 이미 로드된 버전이면 재로딩 불필요
+        if (DATA._meta && String(DATA._meta.data_version) === String(ver)) return;
         switchVersion(ver);
     } else {
         statusEl.className = 'ver-status ver-none';
@@ -1247,7 +1309,12 @@ function buildPages() {
         'sec3_1','sec3_2','sec3_3',
         'sec4_1','sec4_2','sec4_3','sec4_4','sec4_5',
         'sec5_1','sec5_2','sec5_3','sec5_4','sec5_5','sec5_6',
-        'sec6_1','sec6_2','sec6_3','sec6_4'];
+        'sec6_1','sec6_2','sec6_3','sec6_4',
+        'sec7_1','sec7_2','sec7_3','sec7_4','sec7_5',
+        'sec8_1','sec8_2','sec8_3','sec8_4','sec8_5','sec8_6',
+        'sec9_1','sec9_2','sec9_3',
+        'sec10_1','sec10_2','sec10_3','sec10_4','sec10_5','sec10_6',
+        'sec11_1'];
     pages.forEach(id => {
         const div = document.createElement('div');
         div.className = 'page';
@@ -1276,7 +1343,7 @@ renderers.overview = function(D) {
         : '';
     const el = document.getElementById('page-overview');
     el.innerHTML = `
-        <div class="page-title">KISTI/KBSI 논문 성과 종합 대시보드</div>
+        <div class="page-title">KISTI/KBSI/IBS 논문 성과 종합 대시보드</div>
         ${metaLine}
         <div class="summary-row">
             <div class="summary-card">
@@ -1298,6 +1365,40 @@ renderers.overview = function(D) {
                 <div class="label">KBSI 유발논문</div>
                 <div class="value">${num(s.kbsi_induced_papers)}</div>
                 <div class="sub">분석장비 활용 (소속 제외)</div>
+            </div>
+        </div>
+        <div class="summary-row">
+            <div class="summary-card">
+                <div class="label">IBS 소속 논문</div>
+                <div class="value">${num(s.ibs_papers)}</div>
+                <div class="sub">한국 대비 ${s.ibs_kr_share}%</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">IBS 유발논문</div>
+                <div class="value">${num(s.ibs_induced_papers)}</div>
+                <div class="sub">연구센터 활용 (소속 제외)</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">IBS 평균 피인용</div>
+                <div class="value">${s.ibs_avg_tc}</div>
+                <div class="sub">유발논문: ${s.ibs_induced_avg_tc}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">IBS 합산 한국 비중</div>
+                <div class="value">${s.ibs_combined_kr_share}%</div>
+                <div class="sub">직접 + 유발 (${num(s.kr_total)}건 중)</div>
+            </div>
+        </div>
+        <div class="summary-row">
+            <div class="summary-card">
+                <div class="label">PAL 유발논문</div>
+                <div class="value">${num(s.pal_induced_papers)}</div>
+                <div class="sub">한국 대비 ${s.pal_induced_kr_share}%</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">PAL 평균 피인용</div>
+                <div class="value">${s.pal_induced_avg_tc}</div>
+                <div class="sub">방사광 가속기 활용</div>
             </div>
         </div>
         <div class="summary-row">
@@ -1326,7 +1427,10 @@ renderers.overview = function(D) {
             <div class="chart-card"><h3>KISTI 연도별 논문수 (직접 + 유발)</h3><div class="chart-wrap"><canvas id="ov-combined"></canvas></div></div>
             <div class="chart-card"><h3>KBSI 연도별 논문수 (직접 + 유발)</h3><div class="chart-wrap"><canvas id="ov-kbsi-combined"></canvas></div></div>
         </div>
-        <div class="chart-card"><h3>KISTI vs KBSI 비교</h3><div class="chart-wrap"><canvas id="ov-compare"></canvas></div></div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>IBS 연도별 논문수 (직접 + 유발)</h3><div class="chart-wrap"><canvas id="ov-ibs-combined"></canvas></div></div>
+            <div class="chart-card"><h3>KISTI vs KBSI vs IBS 비교</h3><div class="chart-wrap"><canvas id="ov-compare"></canvas></div></div>
+        </div>
         <div class="note">* 유발논문: 해당 기관의 인프라를 활용했으나 소속 저자가 없는 논문. KISTI는 2008-2018 SCIE 부재로 해당 기간 과소집계 가능.</div>
     `;
     const sec32 = D.sec3_2;
@@ -1365,9 +1469,28 @@ renderers.overview = function(D) {
     addDataTable('ov-kbsi-combined', ['연도','KBSI 소속','유발논문','합계'],
         sec63.years.map(d => [d.year, num(d.kbsi), num(d.kbsi_induced), num(d.kbsi_total)]));
 
-    // Comparison chart: KISTI vs KBSI
+    // IBS combined chart
+    const sec93 = D.sec9_3;
+    destroyChart('ov-ibs-combined');
+    charts['ov-ibs-combined'] = new Chart(document.getElementById('ov-ibs-combined'), {
+        type: 'bar',
+        data: {
+            labels: yrs,
+            datasets: [
+                { label: 'IBS 소속', data: sec93.years.map(d => d.ibs), backgroundColor: COLORS.purple },
+                { label: 'IBS 유발', data: sec93.years.map(d => d.ibs_induced), backgroundColor: COLORS.cyan },
+            ]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' } },
+            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+    });
+    addDataTable('ov-ibs-combined', ['연도','IBS 소속','유발논문','합계'],
+        sec93.years.map(d => [d.year, num(d.ibs), num(d.ibs_induced), num(d.ibs_total)]));
+
+    // Comparison chart: KISTI vs KBSI vs IBS
     const k61 = D.sec6_1.kisti, b61 = D.sec6_1.kbsi;
     const ki62 = D.sec6_2.kisti_induced, bi62 = D.sec6_2.kbsi_induced;
+    const i91 = D.sec9_1.ibs, ii92 = D.sec9_2.ibs_induced;
     destroyChart('ov-compare');
     charts['ov-compare'] = new Chart(document.getElementById('ov-compare'), {
         type: 'bar',
@@ -1376,18 +1499,19 @@ renderers.overview = function(D) {
             datasets: [
                 { label: 'KISTI', data: [k61.papers, ki62.papers, k61.avg_tc, ki62.avg_tc, k61.q1_ratio, ki62.q1_ratio], backgroundColor: COLORS.blue },
                 { label: 'KBSI', data: [b61.papers, bi62.papers, b61.avg_tc, bi62.avg_tc, b61.q1_ratio, bi62.q1_ratio], backgroundColor: COLORS.orange },
+                { label: 'IBS', data: [i91.papers, ii92.papers, i91.avg_tc, ii92.avg_tc, i91.q1_ratio, ii92.q1_ratio], backgroundColor: COLORS.purple },
             ]
         },
         options: { responsive: true, plugins: { legend: { position: 'top' } },
             scales: { x: { beginAtZero: true } } }
     });
-    addDataTable('ov-compare', ['지표','KISTI','KBSI'],
-        [['직접 논문수', num(k61.papers), num(b61.papers)],
-         ['유발 논문수', num(ki62.papers), num(bi62.papers)],
-         ['직접 평균TC', k61.avg_tc, b61.avg_tc],
-         ['유발 평균TC', ki62.avg_tc, bi62.avg_tc],
-         ['직접 Q1(%)', k61.q1_ratio+'%', b61.q1_ratio+'%'],
-         ['유발 Q1(%)', ki62.q1_ratio+'%', bi62.q1_ratio+'%']]);
+    addDataTable('ov-compare', ['지표','KISTI','KBSI','IBS'],
+        [['직접 논문수', num(k61.papers), num(b61.papers), num(i91.papers)],
+         ['유발 논문수', num(ki62.papers), num(bi62.papers), num(ii92.papers)],
+         ['직접 평균TC', k61.avg_tc, b61.avg_tc, i91.avg_tc],
+         ['유발 평균TC', ki62.avg_tc, bi62.avg_tc, ii92.avg_tc],
+         ['직접 Q1(%)', k61.q1_ratio+'%', b61.q1_ratio+'%', i91.q1_ratio+'%'],
+         ['유발 Q1(%)', ki62.q1_ratio+'%', bi62.q1_ratio+'%', ii92.q1_ratio+'%']]);
 };
 
 // ── 1-1: 발표 현황 ──
@@ -3025,23 +3149,11 @@ renderers.sec6_4 = function(D) {
         </div>
 
         <div class="chart-card">
-            <h3>상위 10% 논문 비중 비교 (전체 기준)</h3>
-            <p class="chart-insight">
-                한국 전체 SCIE 논문의 연도별 피인용 상위 10% 임계값을 기준으로, 해당 논문이 차지하는 비중을 비교한다.
-                KISTI 유발논문의 상위 10% 비중은 ${k.top10p_induced_ratio}%로 KBSI(${b.top10p_induced_ratio}%)의 약 ${(k.top10p_induced_ratio/b.top10p_induced_ratio).toFixed(1)}배이다.
-                직접논문에서도 KISTI(${k.top10p_direct_ratio}%)가 KBSI(${b.top10p_direct_ratio}%)를 상회한다.
-                이는 KISTI 인프라를 활용한 연구가 단순한 양적 기여를 넘어, 한국 상위권 피인용 논문에 집중적으로 기여하고 있음을 의미한다.
-            </p>
-            <div class="chart-wrap"><canvas id="c6_4_top10"></canvas></div>
-        </div>
-
-        <div class="chart-card">
-            <h3>상위 10% 논문 비중 비교 (분야별 기준)</h3>
+            <h3>상위 10% 논문 비중 비교 (분야별 보정)</h3>
             <p class="chart-insight">
                 ESI 22개 분야별로 같은 분야·같은 연도 내 피인용 상위 10% 기준을 적용한 결과이다.
-                분야 특성을 보정하더라도 KISTI 유발논문(${k.ftop10p_induced_ratio}%)은 KBSI(${b.ftop10p_induced_ratio}%)의 약 ${(k.ftop10p_induced_ratio/b.ftop10p_induced_ratio).toFixed(1)}배로,
-                전체 기준과 유사한 우위를 유지한다. 이는 KISTI의 높은 상위 10% 비중이 특정 고인용 분야 편중이 아닌,
-                분야 내에서도 실질적으로 높은 영향력을 가진 연구를 유발하고 있음을 보여준다.
+                KISTI 유발논문(${k.ftop10p_induced_ratio}%)은 KBSI(${b.ftop10p_induced_ratio}%)의 약 ${(k.ftop10p_induced_ratio/b.ftop10p_induced_ratio).toFixed(1)}배로,
+                분야 간 피인용 규모 차이를 보정하더라도 KISTI의 우위가 유지된다.
                 직접논문에서도 KISTI(${k.ftop10p_direct_ratio}%)가 KBSI(${b.ftop10p_direct_ratio}%)를 크게 상회한다.
             </p>
             <div class="chart-wrap"><canvas id="c6_4_ftop10"></canvas></div>
@@ -3129,29 +3241,7 @@ renderers.sec6_4 = function(D) {
          ['1인당 합산(총현원)', k.combined_per_total, b.combined_per_total],
          ['1인당 합산(박사)', k.combined_per_phd, b.combined_per_phd]]);
 
-    // 차트 3: 유발논문 상위 10% 비중 Grouped Bar
-    destroyChart('c6_4_top10');
-    charts['c6_4_top10'] = new Chart(document.getElementById('c6_4_top10'), {
-        type: 'bar',
-        data: {
-            labels: ['직접논문\n상위10% 비율(%)', '유발논문\n상위10% 비율(%)', '직접논문\n상위10% 건수', '유발논문\n상위10% 건수'],
-            datasets: [
-                { label: 'KISTI', data: [k.top10p_direct_ratio, k.top10p_induced_ratio, k.top10p_direct_count, k.top10p_induced_count], backgroundColor: COLORS.blue },
-                { label: 'KBSI', data: [b.top10p_direct_ratio, b.top10p_induced_ratio, b.top10p_direct_count, b.top10p_induced_count], backgroundColor: COLORS.orange },
-            ]
-        },
-        options: { responsive: true, plugins: { legend: { position: 'top' },
-            datalabels: { display: true, color: '#fff', anchor: 'end', align: 'top', font: { size: 11 },
-                formatter: (v, ctx) => ctx.dataIndex < 2 ? v.toFixed(1) + '%' : num(v) } },
-            scales: { y: { beginAtZero: true } } }
-    });
-    addDataTable('c6_4_top10', ['지표','KISTI','KBSI'],
-        [['직접논문 상위10% 비율(%)', k.top10p_direct_ratio, b.top10p_direct_ratio],
-         ['유발논문 상위10% 비율(%)', k.top10p_induced_ratio, b.top10p_induced_ratio],
-         ['직접논문 상위10% 건수', num(k.top10p_direct_count), num(b.top10p_direct_count)],
-         ['유발논문 상위10% 건수', num(k.top10p_induced_count), num(b.top10p_induced_count)]]);
-
-    // 차트 4: 분야별 상위 10% Grouped Bar
+    // 차트 3: 분야별 상위 10% Grouped Bar
     destroyChart('c6_4_ftop10');
     charts['c6_4_ftop10'] = new Chart(document.getElementById('c6_4_ftop10'), {
         type: 'bar',
@@ -3251,9 +3341,977 @@ renderers.sec6_4 = function(D) {
 };
 
 // ═══════════════════════════════════════════════════════════
+// Section 7: IBS 논문분석 (sec4 복제)
+// ═══════════════════════════════════════════════════════════
+renderers.sec7_1 = function(D) {
+    const d = D.sec7_1;
+    const el = document.getElementById('page-sec7_1');
+    el.innerHTML = `
+        <div class="page-title">7-1. IBS 논문 발표 현황</div>
+        <div class="summary-row">
+            <div class="summary-card"><div class="label">총 논문수</div><div class="value">${num(d.total)}</div></div>
+            <div class="summary-card"><div class="label">최근연도 (${PERIOD.end})</div><div class="value">${num(d.years.find(y=>y.year===PERIOD.end)?.count)}</div></div>
+        </div>
+        <div class="chart-card"><h3>연도별 논문수 및 DB별 분포</h3><p class="chart-insight">IBS 소속 논문(${num(d.total)}건)의 ${PERIOD.start}-${PERIOD.end}년 연도별 추이이다. 2012년 IBS 설립 이후 급속한 성장세를 보이며, SCIE가 절대 다수를 차지한다.</p><div class="chart-wrap"><canvas id="c7_1_bar"></canvas></div></div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>전년대비 성장률 (%)</h3><div class="chart-wrap"><canvas id="c7_1_growth"></canvas></div></div>
+            <div class="chart-card"><h3>한국 대비 비중 (%)</h3><div class="chart-wrap"><canvas id="c7_1_share"></canvas></div></div>
+        </div>
+    `;
+    const yrs = d.years.map(y => y.year);
+    destroyChart('c7_1_bar');
+    charts['c7_1_bar'] = new Chart(document.getElementById('c7_1_bar'), {
+        type: 'bar',
+        data: { labels: yrs, datasets: [
+            { label: 'SCIE', data: d.years.map(y => y.scie), backgroundColor: COLORS.blue },
+            { label: 'SSCI', data: d.years.map(y => y.ssci), backgroundColor: COLORS.green },
+            { label: 'AHCI', data: d.years.map(y => y.ahci), backgroundColor: COLORS.yellow },
+        ]},
+        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+            plugins: { legend: { position: 'top' } } }
+    });
+    addDataTable('c7_1_bar', ['연도','SCIE','SSCI','AHCI','합계'],
+        d.years.map(y => [y.year, num(y.scie), num(y.ssci), num(y.ahci), num(y.count)]));
+    destroyChart('c7_1_growth');
+    charts['c7_1_growth'] = new Chart(document.getElementById('c7_1_growth'), {
+        type: 'line',
+        data: { labels: yrs, datasets: [{ label: '성장률', data: d.years.map(y => y.growth_rate),
+            borderColor: COLORS.purple, tension: 0.3, fill: false }] },
+        options: { responsive: true, scales: { y: { beginAtZero: false } } }
+    });
+    addDataTable('c7_1_growth', ['연도','성장률(%)'], d.years.map(y => [y.year, y.growth_rate]));
+    destroyChart('c7_1_share');
+    charts['c7_1_share'] = new Chart(document.getElementById('c7_1_share'), {
+        type: 'line',
+        data: { labels: yrs, datasets: [{ label: '한국 대비 비중', data: d.years.map(y => y.kr_share),
+            borderColor: COLORS.cyan, tension: 0.3, fill: true, backgroundColor: 'rgba(38,198,218,0.1)' }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c7_1_share', ['연도','한국 대비 비중(%)'], d.years.map(y => [y.year, y.kr_share]));
+};
+
+renderers.sec7_2 = function(D) {
+    const d = D.sec7_2;
+    const el = document.getElementById('page-sec7_2');
+    const top12 = d.fields.slice(0, 12);
+    el.innerHTML = `
+        <div class="page-title">7-2. IBS 논문 분야별 현황</div>
+        <div class="chart-card"><h3>ESI 22분야별 논문수</h3><p class="chart-insight">${d.fields[0]?.field || ''}(${num(d.fields[0]?.count)}건)가 가장 많고, ${d.fields[1]?.field || ''}(${num(d.fields[1]?.count)}건), ${d.fields[2]?.field || ''}(${num(d.fields[2]?.count)}건) 순이다. IBS는 기초과학 분야에 집중적으로 투자하고 있어, Physics, Chemistry 등에서 높은 비중을 보인다.</p><div class="chart-wrap" style="height:500px"><canvas id="c7_2_bar"></canvas></div></div>
+        <div class="chart-card"><h3>RCA 지수 (상위 12분야)</h3><div class="chart-wrap"><canvas id="c7_2_radar"></canvas></div></div>
+    `;
+    destroyChart('c7_2_bar');
+    charts['c7_2_bar'] = new Chart(document.getElementById('c7_2_bar'), {
+        type: 'bar',
+        data: { labels: d.fields.map(f => f.field), datasets: [{ label: '논문수',
+            data: d.fields.map(f => f.count), backgroundColor: COLORS.purple }] },
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            scales: { x: { beginAtZero: true } } }
+    });
+    addDataTable('c7_2_bar', ['분야','논문수','비중(%)'],
+        d.fields.map(f => [f.field, num(f.count), f.kbsi_share]));
+    destroyChart('c7_2_radar');
+    charts['c7_2_radar'] = new Chart(document.getElementById('c7_2_radar'), {
+        type: 'radar',
+        data: { labels: top12.map(f => f.field.substring(0, 15)),
+            datasets: [{ label: 'RCA', data: top12.map(f => f.rca),
+                borderColor: COLORS.purple, backgroundColor: 'rgba(179,136,255,0.2)' }] },
+        options: { responsive: true, scales: { r: { beginAtZero: true } } }
+    });
+    addDataTable('c7_2_radar', ['분야','RCA'], top12.map(f => [f.field, f.rca]));
+};
+
+renderers.sec7_3 = function(D) {
+    const d = D.sec7_3;
+    const el = document.getElementById('page-sec7_3');
+    el.innerHTML = `
+        <div class="page-title">7-3. IBS 논문 영향력 분석</div>
+        <div class="chart-card"><h3>IBS vs 한국 평균 피인용 추이</h3><div class="chart-wrap"><canvas id="c7_3_tc"></canvas></div></div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>연도별 HCP(상위1%) 논문수</h3><div class="chart-wrap"><canvas id="c7_3_hcp"></canvas></div></div>
+            <div class="chart-card"><h3>피인용 분포</h3><div class="chart-wrap"><canvas id="c7_3_dist"></canvas></div></div>
+        </div>
+    `;
+    const yrs = d.years.map(y => y.year);
+    destroyChart('c7_3_tc');
+    charts['c7_3_tc'] = new Chart(document.getElementById('c7_3_tc'), {
+        type: 'line',
+        data: { labels: yrs, datasets: [
+            { label: 'IBS 평균', data: d.years.map(y => y.avg_tc), borderColor: COLORS.purple, tension: 0.3 },
+            { label: '한국 평균', data: d.years.map(y => y.kr_avg_tc), borderColor: '#a0a0c0', borderDash: [5,3], tension: 0.3 },
+        ]},
+        options: { responsive: true }
+    });
+    addDataTable('c7_3_tc', ['연도','IBS 평균 피인용','한국 평균 피인용','IBS 논문수','IBS 총 피인용'],
+        d.years.map(y => [y.year, y.avg_tc, y.kr_avg_tc, num(y.paper_count), num(y.total_tc)]));
+    destroyChart('c7_3_hcp');
+    charts['c7_3_hcp'] = new Chart(document.getElementById('c7_3_hcp'), {
+        type: 'bar',
+        data: { labels: yrs, datasets: [{ label: 'HCP', data: d.years.map(y => y.hcp_count), backgroundColor: COLORS.red }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c7_3_hcp', ['연도','HCP 논문수','전체 논문수'],
+        d.years.map(y => [y.year, num(y.hcp_count), num(y.paper_count)]));
+    destroyChart('c7_3_dist');
+    charts['c7_3_dist'] = new Chart(document.getElementById('c7_3_dist'), {
+        type: 'bar',
+        data: { labels: d.tc_distribution.map(b => b.label), datasets: [
+            { label: '논문수', data: d.tc_distribution.map(b => b.count), backgroundColor: COLORS.indigo }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c7_3_dist', ['피인용 구간','논문수'], d.tc_distribution.map(b => [b.label, num(b.count)]));
+};
+
+renderers.sec7_4 = function(D) {
+    const d = D.sec7_4;
+    const el = document.getElementById('page-sec7_4');
+    el.innerHTML = `
+        <div class="page-title">7-4. IBS 논문 협력 분석</div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>협력유형별 비율</h3><div class="chart-wrap"><canvas id="c7_4_donut"></canvas></div></div>
+            <div class="chart-card"><h3>협력국 Top 15</h3><div class="chart-wrap"><canvas id="c7_4_country"></canvas></div></div>
+        </div>
+        <div class="chart-card"><h3>협력기관 Top 20</h3><div class="chart-wrap" style="height:500px"><canvas id="c7_4_org"></canvas></div></div>
+    `;
+    const ct = d.collab_types;
+    const ctLabels = Object.keys(ct);
+    const ctTotal = ctLabels.reduce((s,k) => s + ct[k], 0);
+    destroyChart('c7_4_donut');
+    charts['c7_4_donut'] = new Chart(document.getElementById('c7_4_donut'), {
+        type: 'doughnut',
+        data: { labels: ctLabels, datasets: [{ data: ctLabels.map(k => ct[k]),
+            backgroundColor: PALETTE.slice(0, ctLabels.length) }] },
+        options: { responsive: true, plugins: { datalabels: { display: true, color: '#fff', font: { size: 11 },
+            formatter: (v, ctx) => { const t = ctx.dataset.data.reduce((a,b)=>a+b,0); return (v/t*100).toFixed(1)+'%'; } } } }
+    });
+    addDataTable('c7_4_donut', ['협력유형','논문수','비율(%)'],
+        ctLabels.map(k => [k, num(ct[k]), (ct[k]/ctTotal*100).toFixed(1)]));
+    destroyChart('c7_4_country');
+    charts['c7_4_country'] = new Chart(document.getElementById('c7_4_country'), {
+        type: 'bar',
+        data: { labels: d.top_countries.map(c => c.country),
+            datasets: [{ label: '공동논문수', data: d.top_countries.map(c => c.count), backgroundColor: COLORS.cyan }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c7_4_country', ['순위','국가','공동논문수'],
+        d.top_countries.map((c,i) => [i+1, c.country, num(c.count)]));
+    destroyChart('c7_4_org');
+    charts['c7_4_org'] = new Chart(document.getElementById('c7_4_org'), {
+        type: 'bar',
+        data: { labels: d.top_collab_orgs.map(o => o.org),
+            datasets: [{ label: '공동논문수', data: d.top_collab_orgs.map(o => o.count), backgroundColor: COLORS.purple }] },
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            scales: { x: { beginAtZero: true } } }
+    });
+    addDataTable('c7_4_org', ['순위','기관','공동논문수'],
+        d.top_collab_orgs.map((o,i) => [i+1, o.org, num(o.count)]));
+};
+
+renderers.sec7_5 = function(D) {
+    const d = D.sec7_5;
+    const el = document.getElementById('page-sec7_5');
+    el.innerHTML = `
+        <div class="page-title">7-5. IBS 논문 학술지 분석</div>
+        <div class="summary-row">
+            <div class="summary-card"><div class="label">평균 JIF</div><div class="value">${d.avg_jif}</div></div>
+        </div>
+        <div class="chart-card"><h3>게재 학술지 Top 30</h3><div class="chart-wrap" style="height:600px"><canvas id="c7_5_journal"></canvas></div></div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>JIF 분포</h3><div class="chart-wrap"><canvas id="c7_5_jif"></canvas></div></div>
+            <div class="chart-card"><h3>Q1 비율 추이</h3><div class="chart-wrap"><canvas id="c7_5_q1"></canvas></div></div>
+        </div>
+    `;
+    destroyChart('c7_5_journal');
+    charts['c7_5_journal'] = new Chart(document.getElementById('c7_5_journal'), {
+        type: 'bar',
+        data: { labels: d.top_journals.map(j => j.journal.length > 40 ? j.journal.substring(0,37)+'...' : j.journal),
+            datasets: [{ label: '논문수', data: d.top_journals.map(j => j.count), backgroundColor: COLORS.purple }] },
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            scales: { x: { beginAtZero: true } } }
+    });
+    addDataTable('c7_5_journal', ['순위','학술지','논문수'],
+        d.top_journals.map((j,i) => [i+1, j.journal, num(j.count)]));
+    destroyChart('c7_5_jif');
+    charts['c7_5_jif'] = new Chart(document.getElementById('c7_5_jif'), {
+        type: 'bar',
+        data: { labels: d.jif_distribution.map(b => b.label),
+            datasets: [{ label: '논문수', data: d.jif_distribution.map(b => b.count), backgroundColor: COLORS.amber }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c7_5_jif', ['JIF 구간','논문수'], d.jif_distribution.map(b => [b.label, num(b.count)]));
+    destroyChart('c7_5_q1');
+    charts['c7_5_q1'] = new Chart(document.getElementById('c7_5_q1'), {
+        type: 'line',
+        data: { labels: d.q1_trend.map(y => y.year),
+            datasets: [{ label: 'Q1 비율 (%)', data: d.q1_trend.map(y => y.q1_ratio),
+                borderColor: COLORS.cyan, tension: 0.3, fill: true, backgroundColor: 'rgba(38,198,218,0.1)' }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+    });
+    addDataTable('c7_5_q1', ['연도','Q1 비율(%)','Q1 논문수','JCR 매칭 전체'],
+        d.q1_trend.map(y => [y.year, y.q1_ratio, num(y.q1_count), num(y.total)]));
+};
+
+// ═══════════════════════════════════════════════════════════
+// Section 8: IBS 유발논문분석 (sec5 복제)
+// ═══════════════════════════════════════════════════════════
+renderers.sec8_1 = function(D) {
+    const d = D.sec8_1;
+    const el = document.getElementById('page-sec8_1');
+    el.innerHTML = `
+        <div class="page-title">8-1. IBS 유발논문 현황</div>
+        <div class="summary-row">
+            <div class="summary-card"><div class="label">총 유발논문</div><div class="value">${num(d.total)}</div></div>
+        </div>
+        <div class="chart-card"><h3>연도별 유발논문수</h3><p class="chart-insight">IBS 연구센터를 활용했으나 IBS 소속 저자가 없는 유발논문(${num(d.total)}건)의 연도별 추이이다.</p><div class="chart-wrap"><canvas id="c8_1_bar"></canvas></div></div>
+        <div class="chart-card"><h3>한국 대비 비중 (%)</h3><div class="chart-wrap"><canvas id="c8_1_share"></canvas></div></div>
+    `;
+    const yrs = d.years.map(y => y.year);
+    destroyChart('c8_1_bar');
+    charts['c8_1_bar'] = new Chart(document.getElementById('c8_1_bar'), {
+        type: 'bar',
+        data: { labels: yrs, datasets: [
+            { label: 'SCIE', data: d.years.map(y => y.scie), backgroundColor: COLORS.blue },
+            { label: 'SSCI', data: d.years.map(y => y.ssci), backgroundColor: COLORS.green },
+            { label: 'AHCI', data: d.years.map(y => y.ahci), backgroundColor: COLORS.yellow },
+        ]},
+        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+            plugins: { legend: { position: 'top' } } }
+    });
+    addDataTable('c8_1_bar', ['연도','SCIE','SSCI','AHCI','합계'],
+        d.years.map(y => [y.year, num(y.scie), num(y.ssci), num(y.ahci), num(y.count)]));
+    destroyChart('c8_1_share');
+    charts['c8_1_share'] = new Chart(document.getElementById('c8_1_share'), {
+        type: 'line',
+        data: { labels: yrs, datasets: [{ label: '한국 대비 비중',
+            data: d.years.map(y => y.kr_share), borderColor: COLORS.cyan, tension: 0.3,
+            fill: true, backgroundColor: 'rgba(38,198,218,0.1)' }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c8_1_share', ['연도','한국 대비 비중(%)'], d.years.map(y => [y.year, y.kr_share]));
+};
+
+renderers.sec8_2 = function(D) {
+    const d = D.sec8_2;
+    const el = document.getElementById('page-sec8_2');
+    el.innerHTML = `
+        <div class="page-title">8-2. IBS 인프라별 유발논문 분석</div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>인프라별 비율</h3><p class="chart-insight">IBS 유발논문은 전량이 'IBS 연구센터 지원'으로 분류된다. 향후 연구센터별 세분류가 이루어지면 더 정밀한 분석이 가능할 것이다.</p><div class="chart-wrap"><canvas id="c8_2_donut"></canvas></div></div>
+            <div class="chart-card"><h3>인프라별 논문수</h3>
+                <table class="data-table"><thead><tr><th>인프라</th><th>논문수</th><th>비율</th></tr></thead>
+                <tbody>${Object.entries(d.infra_total).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
+                    '<tr><td>'+k+'</td><td>'+num(v)+'</td><td>'+(v/d.categories.reduce((s,c)=>s+(d.infra_total[c]||0),0)*100).toFixed(1)+'%</td></tr>'
+                ).join('')}</tbody></table>
+            </div>
+        </div>
+        <div class="chart-card"><h3>인프라별 연도 추이</h3><div class="chart-wrap"><canvas id="c8_2_stack"></canvas></div></div>
+    `;
+    const cats = d.categories;
+    const total = cats.reduce((s, c) => s + (d.infra_total[c] || 0), 0);
+    destroyChart('c8_2_donut');
+    charts['c8_2_donut'] = new Chart(document.getElementById('c8_2_donut'), {
+        type: 'doughnut',
+        data: { labels: cats, datasets: [{ data: cats.map(c => d.infra_total[c] || 0),
+            backgroundColor: PALETTE.slice(0, cats.length) }] },
+        options: { responsive: true, plugins: { datalabels: { display: true, color: '#fff', font: { size: 11 },
+            formatter: (v) => (v/total*100).toFixed(1)+'%' } } }
+    });
+    addDataTable('c8_2_donut', ['인프라','논문수','비율(%)'],
+        cats.map(c => [c, num(d.infra_total[c]||0), ((d.infra_total[c]||0)/total*100).toFixed(1)]));
+    var staticTbl82 = el.querySelectorAll('table.data-table');
+    if (staticTbl82.length) addStaticTableActions(staticTbl82[0], 'sec8_2_인프라별');
+    destroyChart('c8_2_stack');
+    charts['c8_2_stack'] = new Chart(document.getElementById('c8_2_stack'), {
+        type: 'bar',
+        data: { labels: d.infra_by_year.map(r => r.year),
+            datasets: cats.map((c, i) => ({
+                label: c, data: d.infra_by_year.map(r => r[c] || 0),
+                backgroundColor: PALETTE[i % PALETTE.length]
+            }))
+        },
+        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+            plugins: { legend: { position: 'top' } } }
+    });
+    addDataTable('c8_2_stack', ['연도'].concat(cats),
+        d.infra_by_year.map(r => [r.year].concat(cats.map(c => num(r[c]||0)))));
+};
+
+renderers.sec8_3 = function(D) {
+    const d = D.sec8_3;
+    const el = document.getElementById('page-sec8_3');
+    el.innerHTML = `
+        <div class="page-title">8-3. IBS 유발논문 수혜기관 분석</div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>기관유형별 논문수</h3><div class="chart-wrap"><canvas id="c8_3_type"></canvas></div></div>
+            <div class="chart-card"><h3>기관유형별 비율</h3>
+                <table class="data-table"><thead><tr><th>유형</th><th>논문수</th></tr></thead>
+                <tbody>${Object.entries(d.org_type_papers).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
+                    '<tr><td>'+k+'</td><td>'+num(v)+'</td></tr>'
+                ).join('')}</tbody></table>
+            </div>
+        </div>
+        <div class="chart-card"><h3>수혜기관 Top 30</h3><div class="chart-wrap" style="height:600px"><canvas id="c8_3_org"></canvas></div></div>
+    `;
+    const types = Object.entries(d.org_type_papers).sort((a,b)=>b[1]-a[1]);
+    destroyChart('c8_3_type');
+    charts['c8_3_type'] = new Chart(document.getElementById('c8_3_type'), {
+        type: 'doughnut',
+        data: { labels: types.map(t => t[0]), datasets: [{ data: types.map(t => t[1]),
+            backgroundColor: PALETTE.slice(0, types.length) }] },
+        options: { responsive: true, plugins: { datalabels: { display: true, color: '#fff', font: { size: 11 },
+            formatter: (v, ctx) => { const t = ctx.dataset.data.reduce((a,b)=>a+b,0); return (v/t*100).toFixed(1)+'%'; } } } }
+    });
+    addDataTable('c8_3_type', ['기관유형','논문수','비율(%)'],
+        types.map(t => { const tot = types.reduce((s,x)=>s+x[1],0); return [t[0], num(t[1]), (t[1]/tot*100).toFixed(1)]; }));
+    var staticTbl83 = el.querySelectorAll('table.data-table');
+    if (staticTbl83.length) addStaticTableActions(staticTbl83[0], 'sec8_3_기관유형별');
+    destroyChart('c8_3_org');
+    charts['c8_3_org'] = new Chart(document.getElementById('c8_3_org'), {
+        type: 'bar',
+        data: { labels: d.top_orgs.map(o => o.org),
+            datasets: [{ label: '논문수', data: d.top_orgs.map(o => o.count), backgroundColor: COLORS.cyan }] },
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            scales: { x: { beginAtZero: true } } }
+    });
+    addDataTable('c8_3_org', ['순위','기관','논문수'],
+        d.top_orgs.map((o,i) => [i+1, o.org, num(o.count)]));
+};
+
+renderers.sec8_4 = function(D) {
+    const d = D.sec8_4;
+    const el = document.getElementById('page-sec8_4');
+    const top12 = d.fields.filter(f => f.count > 0).slice(0, 12);
+    el.innerHTML = `
+        <div class="page-title">8-4. IBS 유발논문 분야별 분석</div>
+        <div class="chart-card"><h3>ESI 22분야별 유발논문수</h3><div class="chart-wrap" style="height:500px"><canvas id="c8_4_bar"></canvas></div></div>
+        <div class="chart-card"><h3>한국 대비 특화도 (RCA, 상위 12분야)</h3><div class="chart-wrap"><canvas id="c8_4_radar"></canvas></div></div>
+    `;
+    destroyChart('c8_4_bar');
+    charts['c8_4_bar'] = new Chart(document.getElementById('c8_4_bar'), {
+        type: 'bar',
+        data: { labels: d.fields.map(f => f.field), datasets: [{ label: '논문수',
+            data: d.fields.map(f => f.count), backgroundColor: COLORS.cyan }] },
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            scales: { x: { beginAtZero: true } } }
+    });
+    addDataTable('c8_4_bar', ['분야','논문수','RCA'], d.fields.map(f => [f.field, num(f.count), f.rca]));
+    destroyChart('c8_4_radar');
+    charts['c8_4_radar'] = new Chart(document.getElementById('c8_4_radar'), {
+        type: 'radar',
+        data: { labels: top12.map(f => f.field.substring(0, 15)),
+            datasets: [{ label: 'RCA', data: top12.map(f => f.rca),
+                borderColor: COLORS.cyan, backgroundColor: 'rgba(38,198,218,0.2)' }] },
+        options: { responsive: true, scales: { r: { beginAtZero: true } } }
+    });
+    addDataTable('c8_4_radar', ['분야','RCA'], top12.map(f => [f.field, f.rca]));
+};
+
+renderers.sec8_5 = function(D) {
+    const d = D.sec8_5;
+    const el = document.getElementById('page-sec8_5');
+    el.innerHTML = `
+        <div class="page-title">8-5. IBS 유발논문 영향력 분석</div>
+        <div class="chart-card"><h3>유발논문 vs 한국 평균 피인용 추이</h3><div class="chart-wrap"><canvas id="c8_5_tc"></canvas></div></div>
+        <div class="chart-card"><h3>연도별 HCP(상위1%) 논문수</h3><div class="chart-wrap"><canvas id="c8_5_hcp"></canvas></div></div>
+    `;
+    const yrs = d.years.map(y => y.year);
+    destroyChart('c8_5_tc');
+    charts['c8_5_tc'] = new Chart(document.getElementById('c8_5_tc'), {
+        type: 'line',
+        data: { labels: yrs, datasets: [
+            { label: 'IBS 유발논문 평균', data: d.years.map(y => y.avg_tc), borderColor: COLORS.cyan, tension: 0.3 },
+            { label: '한국 평균', data: d.years.map(y => y.kr_avg_tc), borderColor: '#a0a0c0', borderDash: [5,3], tension: 0.3 },
+        ]},
+        options: { responsive: true }
+    });
+    addDataTable('c8_5_tc', ['연도','유발논문 평균 피인용','한국 평균 피인용','논문수','총 피인용'],
+        d.years.map(y => [y.year, y.avg_tc, y.kr_avg_tc, num(y.paper_count), num(y.total_tc)]));
+    destroyChart('c8_5_hcp');
+    charts['c8_5_hcp'] = new Chart(document.getElementById('c8_5_hcp'), {
+        type: 'bar',
+        data: { labels: yrs, datasets: [{ label: 'HCP', data: d.years.map(y => y.hcp_count), backgroundColor: COLORS.red }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c8_5_hcp', ['연도','HCP 논문수','전체 논문수'],
+        d.years.map(y => [y.year, num(y.hcp_count), num(y.paper_count)]));
+};
+
+renderers.sec8_6 = function(D) {
+    const d = D.sec8_6;
+    const el = document.getElementById('page-sec8_6');
+    el.innerHTML = `
+        <div class="page-title">8-6. IBS 유발논문 협력 네트워크</div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>협력유형별 비율</h3><div class="chart-wrap"><canvas id="c8_6_donut"></canvas></div></div>
+            <div class="chart-card"><h3>협력국 Top 15</h3><div class="chart-wrap"><canvas id="c8_6_country"></canvas></div></div>
+        </div>
+    `;
+    const ct = d.collab_types;
+    const ctLabels = Object.keys(ct);
+    const ctTotal = ctLabels.reduce((s,k) => s + ct[k], 0);
+    destroyChart('c8_6_donut');
+    charts['c8_6_donut'] = new Chart(document.getElementById('c8_6_donut'), {
+        type: 'doughnut',
+        data: { labels: ctLabels, datasets: [{ data: ctLabels.map(k => ct[k]),
+            backgroundColor: PALETTE.slice(0, ctLabels.length) }] },
+        options: { responsive: true, plugins: { datalabels: { display: true, color: '#fff', font: { size: 11 },
+            formatter: (v, ctx) => { const t = ctx.dataset.data.reduce((a,b)=>a+b,0); return (v/t*100).toFixed(1)+'%'; } } } }
+    });
+    addDataTable('c8_6_donut', ['협력유형','논문수','비율(%)'],
+        ctLabels.map(k => [k, num(ct[k]), (ct[k]/ctTotal*100).toFixed(1)]));
+    destroyChart('c8_6_country');
+    charts['c8_6_country'] = new Chart(document.getElementById('c8_6_country'), {
+        type: 'bar',
+        data: { labels: d.top_countries.map(c => c.country),
+            datasets: [{ label: '공동논문수', data: d.top_countries.map(c => c.count), backgroundColor: COLORS.purple }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c8_6_country', ['순위','국가','공동논문수'],
+        d.top_countries.map((c,i) => [i+1, c.country, num(c.count)]));
+};
+
+// ═══════════════════════════════════════════════════════════
+// Section 9: KISTI vs IBS 비교 (sec6_1~6_3 복제, sec6_4 제외)
+// ═══════════════════════════════════════════════════════════
+renderers.sec9_1 = function(D) {
+    const d = D.sec9_1;
+    const el = document.getElementById('page-sec9_1');
+    const k = d.kisti, ib = d.ibs;
+    el.innerHTML = `
+        <div class="page-title">9-1. KISTI vs IBS 직접 논문 비교</div>
+        <div class="chart-card"><h3>주요 지표 비교</h3><div class="chart-wrap"><canvas id="c9_1_bar"></canvas></div></div>
+        <table class="data-table" style="max-width:600px;margin:0 auto 20px;">
+            <thead><tr><th>지표</th><th>KISTI</th><th>IBS</th></tr></thead>
+            <tbody>
+                <tr><td>논문수</td><td>${num(k.papers)}</td><td>${num(ib.papers)}</td></tr>
+                <tr><td>평균 피인용</td><td>${k.avg_tc}</td><td>${ib.avg_tc}</td></tr>
+                <tr><td>총 피인용</td><td>${num(k.total_tc)}</td><td>${num(ib.total_tc)}</td></tr>
+                <tr><td>Q1 비율</td><td>${k.q1_ratio}%</td><td>${ib.q1_ratio}%</td></tr>
+            </tbody>
+        </table>
+    `;
+    destroyChart('c9_1_bar');
+    charts['c9_1_bar'] = new Chart(document.getElementById('c9_1_bar'), {
+        type: 'bar',
+        data: {
+            labels: ['논문수', '평균피인용', '총피인용(÷100)', 'Q1비율(%)'],
+            datasets: [
+                { label: 'KISTI', data: [k.papers, k.avg_tc, k.total_tc/100, k.q1_ratio], backgroundColor: COLORS.blue },
+                { label: 'IBS', data: [ib.papers, ib.avg_tc, ib.total_tc/100, ib.q1_ratio], backgroundColor: COLORS.purple },
+            ]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' } } }
+    });
+    addDataTable('c9_1_bar', ['지표','KISTI','IBS'],
+        [['논문수', num(k.papers), num(ib.papers)],
+         ['평균 피인용', k.avg_tc, ib.avg_tc],
+         ['총 피인용', num(k.total_tc), num(ib.total_tc)],
+         ['Q1 비율', k.q1_ratio+'%', ib.q1_ratio+'%']]);
+    var staticTbl91 = el.querySelector('table.data-table:not([id])');
+    if (staticTbl91) addStaticTableActions(staticTbl91, 'sec9_1_비교표');
+};
+
+renderers.sec9_2 = function(D) {
+    const d = D.sec9_2;
+    const el = document.getElementById('page-sec9_2');
+    const ki = d.kisti_induced, ii = d.ibs_induced;
+    el.innerHTML = `
+        <div class="page-title">9-2. KISTI vs IBS 유발논문 비교</div>
+        <div class="chart-card"><h3>유발논문 주요 지표 비교</h3><div class="chart-wrap"><canvas id="c9_2_bar"></canvas></div></div>
+        <table class="data-table" style="max-width:600px;margin:0 auto 20px;">
+            <thead><tr><th>지표</th><th>KISTI 유발</th><th>IBS 유발</th></tr></thead>
+            <tbody>
+                <tr><td>논문수</td><td>${num(ki.papers)}</td><td>${num(ii.papers)}</td></tr>
+                <tr><td>평균 피인용</td><td>${ki.avg_tc}</td><td>${ii.avg_tc}</td></tr>
+                <tr><td>총 피인용</td><td>${num(ki.total_tc)}</td><td>${num(ii.total_tc)}</td></tr>
+                <tr><td>Q1 비율</td><td>${ki.q1_ratio}%</td><td>${ii.q1_ratio}%</td></tr>
+            </tbody>
+        </table>
+    `;
+    destroyChart('c9_2_bar');
+    charts['c9_2_bar'] = new Chart(document.getElementById('c9_2_bar'), {
+        type: 'bar',
+        data: {
+            labels: ['논문수', '평균피인용', '총피인용(÷100)', 'Q1비율(%)'],
+            datasets: [
+                { label: 'KISTI 유발', data: [ki.papers, ki.avg_tc, ki.total_tc/100, ki.q1_ratio], backgroundColor: COLORS.green },
+                { label: 'IBS 유발', data: [ii.papers, ii.avg_tc, ii.total_tc/100, ii.q1_ratio], backgroundColor: COLORS.cyan },
+            ]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' } } }
+    });
+    addDataTable('c9_2_bar', ['지표','KISTI 유발','IBS 유발'],
+        [['논문수', num(ki.papers), num(ii.papers)],
+         ['평균 피인용', ki.avg_tc, ii.avg_tc],
+         ['총 피인용', num(ki.total_tc), num(ii.total_tc)],
+         ['Q1 비율', ki.q1_ratio+'%', ii.q1_ratio+'%']]);
+    var staticTbl92 = el.querySelector('table.data-table:not([id])');
+    if (staticTbl92) addStaticTableActions(staticTbl92, 'sec9_2_유발비교표');
+};
+
+renderers.sec9_3 = function(D) {
+    const d = D.sec9_3;
+    const el = document.getElementById('page-sec9_3');
+    const yrs = d.years.map(y => y.year);
+    el.innerHTML = `
+        <div class="page-title">9-3. KISTI vs IBS 종합 비교</div>
+        <div class="chart-card"><h3>연도별 논문수 비교 (직접+유발)</h3><div class="chart-wrap"><canvas id="c9_3_count"></canvas></div></div>
+        <div class="chart-card"><h3>한국 대비 비중 추이</h3><div class="chart-wrap"><canvas id="c9_3_share"></canvas></div></div>
+        <div class="chart-card"><h3>평균 피인용 추이</h3><div class="chart-wrap"><canvas id="c9_3_tc"></canvas></div></div>
+        <table class="data-table" style="max-width:800px;margin:0 auto 20px;">
+            <thead><tr><th>지표</th><th>KISTI 직접</th><th>KISTI 유발</th><th>IBS 직접</th><th>IBS 유발</th></tr></thead>
+            <tbody>
+                <tr><td>논문수</td><td>${num(d.summary.kisti.papers)}</td><td>${num(d.summary.kisti_induced.papers)}</td><td>${num(d.summary.ibs.papers)}</td><td>${num(d.summary.ibs_induced.papers)}</td></tr>
+                <tr><td>평균 피인용</td><td>${d.summary.kisti.avg_tc}</td><td>${d.summary.kisti_induced.avg_tc}</td><td>${d.summary.ibs.avg_tc}</td><td>${d.summary.ibs_induced.avg_tc}</td></tr>
+                <tr><td>Q1 비율</td><td>${d.summary.kisti.q1_ratio}%</td><td>${d.summary.kisti_induced.q1_ratio}%</td><td>${d.summary.ibs.q1_ratio}%</td><td>${d.summary.ibs_induced.q1_ratio}%</td></tr>
+            </tbody>
+        </table>
+    `;
+    destroyChart('c9_3_count');
+    charts['c9_3_count'] = new Chart(document.getElementById('c9_3_count'), {
+        type: 'line',
+        data: { labels: yrs, datasets: [
+            { label: 'KISTI 합산', data: d.years.map(y => y.kisti_total), borderColor: COLORS.blue, tension: 0.3 },
+            { label: 'IBS 합산', data: d.years.map(y => y.ibs_total), borderColor: COLORS.purple, tension: 0.3 },
+        ]},
+        options: { responsive: true, plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c9_3_count', ['연도','KISTI 합산','IBS 합산'],
+        d.years.map(y => [y.year, num(y.kisti_total), num(y.ibs_total)]));
+    destroyChart('c9_3_share');
+    charts['c9_3_share'] = new Chart(document.getElementById('c9_3_share'), {
+        type: 'line',
+        data: { labels: yrs, datasets: [
+            { label: 'KISTI 한국비중(%)', data: d.years.map(y => y.kisti_kr_share), borderColor: COLORS.blue, tension: 0.3 },
+            { label: 'IBS 한국비중(%)', data: d.years.map(y => y.ibs_kr_share), borderColor: COLORS.purple, tension: 0.3 },
+        ]},
+        options: { responsive: true, plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c9_3_share', ['연도','KISTI 한국비중(%)','IBS 한국비중(%)'],
+        d.years.map(y => [y.year, y.kisti_kr_share, y.ibs_kr_share]));
+    destroyChart('c9_3_tc');
+    charts['c9_3_tc'] = new Chart(document.getElementById('c9_3_tc'), {
+        type: 'line',
+        data: { labels: yrs, datasets: [
+            { label: 'KISTI 직접', data: d.tc_trend.map(y => y.kisti_avg_tc), borderColor: COLORS.blue, tension: 0.3 },
+            { label: 'KISTI 유발', data: d.tc_trend.map(y => y.kisti_ind_avg_tc), borderColor: COLORS.green, borderDash: [4,2], tension: 0.3 },
+            { label: 'IBS 직접', data: d.tc_trend.map(y => y.ibs_avg_tc), borderColor: COLORS.purple, tension: 0.3 },
+            { label: 'IBS 유발', data: d.tc_trend.map(y => y.ibs_ind_avg_tc), borderColor: COLORS.cyan, borderDash: [4,2], tension: 0.3 },
+            { label: '한국 평균', data: d.tc_trend.map(y => y.kr_avg_tc), borderColor: '#a0a0c0', borderDash: [5,3], tension: 0.3 },
+        ]},
+        options: { responsive: true, plugins: { legend: { position: 'top' } } }
+    });
+    addDataTable('c9_3_tc', ['연도','KISTI 직접','KISTI 유발','IBS 직접','IBS 유발','한국 평균'],
+        d.tc_trend.map(y => [y.year, y.kisti_avg_tc, y.kisti_ind_avg_tc, y.ibs_avg_tc, y.ibs_ind_avg_tc, y.kr_avg_tc]));
+    var staticTbl93 = el.querySelector('table.data-table:not([id])');
+    if (staticTbl93) addStaticTableActions(staticTbl93, 'sec9_3_종합비교표');
+};
+
+// ═══════════════════════════════════════════════════════════
+// Section 10: PAL(포항가속기연구소) 유발논문분석 (sec8 복제)
+// ═══════════════════════════════════════════════════════════
+renderers.sec10_1 = function(D) {
+    const d = D.sec10_1;
+    const el = document.getElementById('page-sec10_1');
+    el.innerHTML = `
+        <div class="page-title">10-1. PAL 유발논문 현황</div>
+        <div class="summary-row">
+            <div class="summary-card"><div class="label">총 유발논문</div><div class="value">${num(d.total)}</div></div>
+        </div>
+        <div class="chart-card"><h3>연도별 유발논문수</h3><p class="chart-insight">포항가속기연구소(PAL)의 방사광 가속기를 활용한 유발논문(${num(d.total)}건)의 연도별 추이이다.</p><div class="chart-wrap"><canvas id="c10_1_bar"></canvas></div></div>
+        <div class="chart-card"><h3>한국 대비 비중 (%)</h3><div class="chart-wrap"><canvas id="c10_1_share"></canvas></div></div>
+    `;
+    const yrs = d.years.map(y => y.year);
+    destroyChart('c10_1_bar');
+    charts['c10_1_bar'] = new Chart(document.getElementById('c10_1_bar'), {
+        type: 'bar',
+        data: { labels: yrs, datasets: [
+            { label: 'SCIE', data: d.years.map(y => y.scie), backgroundColor: COLORS.blue },
+            { label: 'SSCI', data: d.years.map(y => y.ssci), backgroundColor: COLORS.green },
+            { label: 'AHCI', data: d.years.map(y => y.ahci), backgroundColor: COLORS.yellow },
+        ]},
+        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+            plugins: { legend: { position: 'top' } } }
+    });
+    addDataTable('c10_1_bar', ['연도','SCIE','SSCI','AHCI','합계'],
+        d.years.map(y => [y.year, num(y.scie), num(y.ssci), num(y.ahci), num(y.count)]));
+    destroyChart('c10_1_share');
+    charts['c10_1_share'] = new Chart(document.getElementById('c10_1_share'), {
+        type: 'line',
+        data: { labels: yrs, datasets: [{ label: '한국 대비 비중',
+            data: d.years.map(y => y.kr_share), borderColor: COLORS.orange, tension: 0.3,
+            fill: true, backgroundColor: 'rgba(255,167,38,0.1)' }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c10_1_share', ['연도','한국 대비 비중(%)'], d.years.map(y => [y.year, y.kr_share]));
+};
+
+renderers.sec10_2 = function(D) {
+    const d = D.sec10_2;
+    const el = document.getElementById('page-sec10_2');
+    el.innerHTML = `
+        <div class="page-title">10-2. PAL 인프라별 유발논문 분석</div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>인프라별 비율</h3><p class="chart-insight">PAL 유발논문은 전량이 'PAL 방사광 가속기 지원'으로 분류된다. 향후 빔라인별 세분류가 이루어지면 더 정밀한 분석이 가능할 것이다.</p><div class="chart-wrap"><canvas id="c10_2_donut"></canvas></div></div>
+            <div class="chart-card"><h3>인프라별 논문수</h3>
+                <table class="data-table"><thead><tr><th>인프라</th><th>논문수</th><th>비율</th></tr></thead>
+                <tbody>${Object.entries(d.infra_total).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
+                    '<tr><td>'+k+'</td><td>'+num(v)+'</td><td>'+(v/d.categories.reduce((s,c)=>s+(d.infra_total[c]||0),0)*100).toFixed(1)+'%</td></tr>'
+                ).join('')}</tbody></table>
+            </div>
+        </div>
+        <div class="chart-card"><h3>인프라별 연도 추이</h3><div class="chart-wrap"><canvas id="c10_2_stack"></canvas></div></div>
+    `;
+    const cats = d.categories;
+    const total = cats.reduce((s, c) => s + (d.infra_total[c] || 0), 0);
+    destroyChart('c10_2_donut');
+    charts['c10_2_donut'] = new Chart(document.getElementById('c10_2_donut'), {
+        type: 'doughnut',
+        data: { labels: cats, datasets: [{ data: cats.map(c => d.infra_total[c] || 0),
+            backgroundColor: PALETTE.slice(0, cats.length) }] },
+        options: { responsive: true, plugins: { datalabels: { display: true, color: '#fff', font: { size: 11 },
+            formatter: (v) => (v/total*100).toFixed(1)+'%' } } }
+    });
+    addDataTable('c10_2_donut', ['인프라','논문수','비율(%)'],
+        cats.map(c => [c, num(d.infra_total[c]||0), ((d.infra_total[c]||0)/total*100).toFixed(1)]));
+    var staticTbl = el.querySelectorAll('table.data-table');
+    if (staticTbl.length) addStaticTableActions(staticTbl[0], 'sec10_2_인프라별');
+    destroyChart('c10_2_stack');
+    charts['c10_2_stack'] = new Chart(document.getElementById('c10_2_stack'), {
+        type: 'bar',
+        data: { labels: d.infra_by_year.map(r => r.year),
+            datasets: cats.map((c, i) => ({
+                label: c, data: d.infra_by_year.map(r => r[c] || 0),
+                backgroundColor: PALETTE[i % PALETTE.length]
+            }))
+        },
+        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+            plugins: { legend: { position: 'top' } } }
+    });
+    addDataTable('c10_2_stack', ['연도'].concat(cats),
+        d.infra_by_year.map(r => [r.year].concat(cats.map(c => num(r[c]||0)))));
+};
+
+renderers.sec10_3 = function(D) {
+    const d = D.sec10_3;
+    const el = document.getElementById('page-sec10_3');
+    el.innerHTML = `
+        <div class="page-title">10-3. PAL 유발논문 수혜기관 분석</div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>기관유형별 논문수</h3><div class="chart-wrap"><canvas id="c10_3_type"></canvas></div></div>
+            <div class="chart-card"><h3>기관유형별 비율</h3>
+                <table class="data-table"><thead><tr><th>유형</th><th>논문수</th></tr></thead>
+                <tbody>${Object.entries(d.org_type_papers).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
+                    '<tr><td>'+k+'</td><td>'+num(v)+'</td></tr>'
+                ).join('')}</tbody></table>
+            </div>
+        </div>
+        <div class="chart-card"><h3>수혜기관 Top 30</h3><div class="chart-wrap" style="height:600px"><canvas id="c10_3_org"></canvas></div></div>
+    `;
+    const types = Object.entries(d.org_type_papers).sort((a,b)=>b[1]-a[1]);
+    destroyChart('c10_3_type');
+    charts['c10_3_type'] = new Chart(document.getElementById('c10_3_type'), {
+        type: 'doughnut',
+        data: { labels: types.map(t => t[0]), datasets: [{ data: types.map(t => t[1]),
+            backgroundColor: PALETTE.slice(0, types.length) }] },
+        options: { responsive: true, plugins: { datalabels: { display: true, color: '#fff', font: { size: 11 },
+            formatter: (v, ctx) => { const t = ctx.dataset.data.reduce((a,b)=>a+b,0); return (v/t*100).toFixed(1)+'%'; } } } }
+    });
+    addDataTable('c10_3_type', ['기관유형','논문수','비율(%)'],
+        types.map(t => { const tot = types.reduce((s,x)=>s+x[1],0); return [t[0], num(t[1]), (t[1]/tot*100).toFixed(1)]; }));
+    var staticTbl = el.querySelectorAll('table.data-table');
+    if (staticTbl.length) addStaticTableActions(staticTbl[0], 'sec10_3_기관유형별');
+    destroyChart('c10_3_org');
+    charts['c10_3_org'] = new Chart(document.getElementById('c10_3_org'), {
+        type: 'bar',
+        data: { labels: d.top_orgs.map(o => o.org),
+            datasets: [{ label: '논문수', data: d.top_orgs.map(o => o.count), backgroundColor: COLORS.orange }] },
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            scales: { x: { beginAtZero: true } } }
+    });
+    addDataTable('c10_3_org', ['순위','기관','논문수'],
+        d.top_orgs.map((o,i) => [i+1, o.org, num(o.count)]));
+};
+
+renderers.sec10_4 = function(D) {
+    const d = D.sec10_4;
+    const el = document.getElementById('page-sec10_4');
+    const top12 = d.fields.filter(f => f.count > 0).slice(0, 12);
+    el.innerHTML = `
+        <div class="page-title">10-4. PAL 유발논문 분야별 분석</div>
+        <div class="chart-card"><h3>ESI 22분야별 유발논문수</h3><div class="chart-wrap" style="height:500px"><canvas id="c10_4_bar"></canvas></div></div>
+        <div class="chart-card"><h3>한국 대비 특화도 (RCA, 상위 12분야)</h3><div class="chart-wrap"><canvas id="c10_4_radar"></canvas></div></div>
+    `;
+    destroyChart('c10_4_bar');
+    charts['c10_4_bar'] = new Chart(document.getElementById('c10_4_bar'), {
+        type: 'bar',
+        data: { labels: d.fields.map(f => f.field), datasets: [{ label: '논문수',
+            data: d.fields.map(f => f.count), backgroundColor: COLORS.orange }] },
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            scales: { x: { beginAtZero: true } } }
+    });
+    addDataTable('c10_4_bar', ['분야','논문수','RCA'], d.fields.map(f => [f.field, num(f.count), f.rca]));
+    destroyChart('c10_4_radar');
+    charts['c10_4_radar'] = new Chart(document.getElementById('c10_4_radar'), {
+        type: 'radar',
+        data: { labels: top12.map(f => f.field.substring(0, 15)),
+            datasets: [{ label: 'RCA', data: top12.map(f => f.rca),
+                borderColor: COLORS.orange, backgroundColor: 'rgba(255,167,38,0.2)' }] },
+        options: { responsive: true, scales: { r: { beginAtZero: true } } }
+    });
+    addDataTable('c10_4_radar', ['분야','RCA'], top12.map(f => [f.field, f.rca]));
+};
+
+renderers.sec10_5 = function(D) {
+    const d = D.sec10_5;
+    const el = document.getElementById('page-sec10_5');
+    el.innerHTML = `
+        <div class="page-title">10-5. PAL 유발논문 영향력 분석</div>
+        <div class="chart-card"><h3>유발논문 vs 한국 평균 피인용 추이</h3><div class="chart-wrap"><canvas id="c10_5_tc"></canvas></div></div>
+        <div class="chart-card"><h3>연도별 HCP(상위1%) 논문수</h3><div class="chart-wrap"><canvas id="c10_5_hcp"></canvas></div></div>
+    `;
+    const yrs = d.years.map(y => y.year);
+    destroyChart('c10_5_tc');
+    charts['c10_5_tc'] = new Chart(document.getElementById('c10_5_tc'), {
+        type: 'line',
+        data: { labels: yrs, datasets: [
+            { label: 'PAL 유발논문 평균', data: d.years.map(y => y.avg_tc), borderColor: COLORS.orange, tension: 0.3 },
+            { label: '한국 평균', data: d.years.map(y => y.kr_avg_tc), borderColor: '#a0a0c0', borderDash: [5,3], tension: 0.3 },
+        ]},
+        options: { responsive: true }
+    });
+    addDataTable('c10_5_tc', ['연도','유발논문 평균 피인용','한국 평균 피인용','논문수','총 피인용'],
+        d.years.map(y => [y.year, y.avg_tc, y.kr_avg_tc, num(y.paper_count), num(y.total_tc)]));
+    destroyChart('c10_5_hcp');
+    charts['c10_5_hcp'] = new Chart(document.getElementById('c10_5_hcp'), {
+        type: 'bar',
+        data: { labels: yrs, datasets: [{ label: 'HCP', data: d.years.map(y => y.hcp_count), backgroundColor: COLORS.red }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c10_5_hcp', ['연도','HCP 논문수','전체 논문수'],
+        d.years.map(y => [y.year, num(y.hcp_count), num(y.paper_count)]));
+};
+
+renderers.sec10_6 = function(D) {
+    const d = D.sec10_6;
+    const el = document.getElementById('page-sec10_6');
+    el.innerHTML = `
+        <div class="page-title">10-6. PAL 유발논문 협력 네트워크</div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>협력유형별 비율</h3><div class="chart-wrap"><canvas id="c10_6_donut"></canvas></div></div>
+            <div class="chart-card"><h3>협력국 Top 15</h3><div class="chart-wrap"><canvas id="c10_6_country"></canvas></div></div>
+        </div>
+    `;
+    const ct = d.collab_types;
+    const ctLabels = Object.keys(ct);
+    const ctTotal = ctLabels.reduce((s,k) => s + ct[k], 0);
+    destroyChart('c10_6_donut');
+    charts['c10_6_donut'] = new Chart(document.getElementById('c10_6_donut'), {
+        type: 'doughnut',
+        data: { labels: ctLabels, datasets: [{ data: ctLabels.map(k => ct[k]),
+            backgroundColor: PALETTE.slice(0, ctLabels.length) }] },
+        options: { responsive: true, plugins: { datalabels: { display: true, color: '#fff', font: { size: 11 },
+            formatter: (v, ctx) => { const t = ctx.dataset.data.reduce((a,b)=>a+b,0); return (v/t*100).toFixed(1)+'%'; } } } }
+    });
+    addDataTable('c10_6_donut', ['협력유형','논문수','비율(%)'],
+        ctLabels.map(k => [k, num(ct[k]), (ct[k]/ctTotal*100).toFixed(1)]));
+    destroyChart('c10_6_country');
+    charts['c10_6_country'] = new Chart(document.getElementById('c10_6_country'), {
+        type: 'bar',
+        data: { labels: d.top_countries.map(c => c.country),
+            datasets: [{ label: '공동논문수', data: d.top_countries.map(c => c.count), backgroundColor: COLORS.orange }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+    addDataTable('c10_6_country', ['순위','국가','공동논문수'],
+        d.top_countries.map((c,i) => [i+1, c.country, num(c.count)]));
+};
+
+// ═══════════════════════════════════════════════════════════
+// 11-1: 질적 우수성 종합 비교
+// ═══════════════════════════════════════════════════════════
+
+renderers.sec11_1 = function(D) {
+    const d = D.sec11_1;
+    const el = document.getElementById('page-sec11_1');
+    const inst = d.institutions; // [{name,type,papers,avg_tc,mncs,...}]
+    const lev = d.leverage;      // [{name,direct,induced,ratio}]
+    const bud = d.budget;        // {annual_budget_10b, papers_per_10b_yr, ...}
+    const trend = d.tc_trend;    // [{year, kr_avg_tc, kisti_direct, ...}]
+
+    // 직접/유발 분리
+    const directI = inst.filter(x => x.type === '직접');
+    const inducedI = inst.filter(x => x.type === '유발');
+    const names4 = ['KISTI','KBSI','IBS','PAL'];
+    const colors4 = [COLORS.blue, COLORS.green, COLORS.purple, COLORS.orange];
+
+    // 비교 테이블 빌드
+    const tableRows = inst.map(x =>
+        `<tr><td>${x.name}</td><td>${x.type}</td><td>${num(x.papers)}</td>` +
+        `<td><strong>${x.avg_tc}</strong></td><td>${x.mncs != null ? x.mncs : '-'}</td>` +
+        `<td>${x.ftop10p_ratio}%</td><td>${x.q1_ratio}%</td></tr>`
+    ).join('');
+
+    el.innerHTML = `
+        <div class="page-title">11-1. 질적 우수성 종합 비교</div>
+        <p class="chart-insight">KISTI·KBSI·IBS·PAL 4개 기관의 논문 질적 지표를 일괄 비교한다.
+        MNCS(Mean Normalized Citation Score)는 같은 분야·같은 연도의 한국 평균 대비 피인용 영향력 지수로,
+        1.0이 한국 평균이다. 상위10%는 분야별 보정 기준이다.</p>
+        <div class="chart-card">
+            <h3>기관별 질적 지표 비교표</h3>
+            <div style="overflow-x:auto;">
+            <table class="data-table" style="margin:0;">
+                <thead><tr><th>기관</th><th>유형</th><th>논문수</th><th>평균TC</th><th>MNCS</th><th>상위10%<br>(분야별)</th><th>Q1비율</th></tr></thead>
+                <tbody>${tableRows}</tbody>
+            </table></div>
+        </div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>평균 피인용수(TC) 비교</h3>
+                <p class="chart-insight">KISTI 직접논문의 평균 피인용(${directI.find(x=>x.name==='KISTI')?.avg_tc || 0}회)은 타 기관의 2배 이상이며, 유발논문도 KBSI보다 높은 피인용 영향력을 보인다.</p>
+                <div class="chart-wrap"><canvas id="c11_avg_tc"></canvas></div></div>
+            <div class="chart-card"><h3>MNCS (피인용 영향력 지수)</h3>
+                <p class="chart-insight">MNCS 1.0 = 한국 평균. KISTI 직접논문 MNCS ${directI.find(x=>x.name==='KISTI')?.mncs || '-'}는 한국 평균의 ${((directI.find(x=>x.name==='KISTI')?.mncs || 1)*100-100).toFixed(0)}% 높은 영향력. 유발논문 MNCS ${inducedI.find(x=>x.name==='KISTI')?.mncs || '-'}도 최고 수준이다.</p>
+                <div class="chart-wrap"><canvas id="c11_mncs"></canvas></div></div>
+        </div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>분야별 상위 10% 논문 비율</h3>
+                <p class="chart-insight">KISTI 유발논문의 ${inducedI.find(x=>x.name==='KISTI')?.ftop10p_ratio || 0}%가 분야별 상위 10%에 해당하며, 이는 KBSI(${inducedI.find(x=>x.name==='KBSI')?.ftop10p_ratio || 0}%)의 약 2배이다.</p>
+                <div class="chart-wrap"><canvas id="c11_top10p"></canvas></div></div>
+            <div class="chart-card"><h3>Q1 학술지 게재 비율</h3>
+                <p class="chart-insight">KISTI 유발논문의 Q1 비율(${inducedI.find(x=>x.name==='KISTI')?.q1_ratio || 0}%)은 4개 기관 유발논문 중에서도 높은 수준이다.</p>
+                <div class="chart-wrap"><canvas id="c11_q1"></canvas></div></div>
+        </div>
+        <div class="chart-row">
+            <div class="chart-card"><h3>인프라 파급효과 (유발/직접 비율)</h3>
+                <p class="chart-insight">KISTI는 자체 논문 1편당 유발논문 ${lev.find(x=>x.name==='KISTI')?.ratio || 0}편을 창출하며, 이는 KBSI(${lev.find(x=>x.name==='KBSI')?.ratio || 0}배)의 약 ${(lev.find(x=>x.name==='KISTI')?.ratio / Math.max(lev.find(x=>x.name==='KBSI')?.ratio || 1, 0.01)).toFixed(1)}배이다.</p>
+                <div class="chart-wrap"><canvas id="c11_leverage"></canvas></div></div>
+            <div class="chart-card"><h3>연도별 유발논문 평균TC 추이</h3>
+                <p class="chart-insight">기관별 유발논문 피인용 추이와 한국 평균(점선)을 비교한다.</p>
+                <div class="chart-wrap"><canvas id="c11_tc_trend"></canvas></div></div>
+        </div>
+    `;
+
+    // ── Chart 1: 평균TC 비교 ──
+    const tcDirect = directI.map(x => x.avg_tc);
+    const tcInduced = inducedI.map(x => x.avg_tc);
+    const tcLabels = directI.map(x => x.name);
+    // 유발에는 PAL 추가
+    const tcInducedLabels = inducedI.map(x => x.name);
+    destroyChart('c11_avg_tc');
+    charts['c11_avg_tc'] = new Chart(document.getElementById('c11_avg_tc'), {
+        type: 'bar',
+        data: {
+            labels: ['KISTI','KBSI','IBS','PAL'],
+            datasets: [
+                { label: '직접논문', data: ['KISTI','KBSI','IBS','PAL'].map(n => (directI.find(x=>x.name===n)||{}).avg_tc || 0),
+                  backgroundColor: 'rgba(108,140,255,0.8)' },
+                { label: '유발논문', data: ['KISTI','KBSI','IBS','PAL'].map(n => (inducedI.find(x=>x.name===n)||{}).avg_tc || 0),
+                  backgroundColor: 'rgba(76,175,80,0.8)' },
+            ]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' },
+            datalabels: { display: true, anchor: 'end', align: 'top', color: '#e0e0f0', font: { size: 11 } } },
+            scales: { y: { beginAtZero: true, title: { display: true, text: '평균 피인용수(TC)' } } } }
+    });
+
+    // ── Chart 2: MNCS 비교 ──
+    destroyChart('c11_mncs');
+    charts['c11_mncs'] = new Chart(document.getElementById('c11_mncs'), {
+        type: 'bar',
+        data: {
+            labels: ['KISTI','KBSI','IBS','PAL'],
+            datasets: [
+                { label: '직접논문', data: ['KISTI','KBSI','IBS','PAL'].map(n => (directI.find(x=>x.name===n)||{}).mncs || 0),
+                  backgroundColor: 'rgba(108,140,255,0.8)' },
+                { label: '유발논문', data: ['KISTI','KBSI','IBS','PAL'].map(n => (inducedI.find(x=>x.name===n)||{}).mncs || 0),
+                  backgroundColor: 'rgba(76,175,80,0.8)' },
+            ]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' },
+            datalabels: { display: true, anchor: 'end', align: 'top', color: '#e0e0f0', font: { size: 11 } } },
+            scales: { y: { beginAtZero: true, title: { display: true, text: 'MNCS (1.0 = 한국 평균)' } } } }
+    });
+
+    // ── Chart 3: 상위10% 비율 ──
+    destroyChart('c11_top10p');
+    charts['c11_top10p'] = new Chart(document.getElementById('c11_top10p'), {
+        type: 'bar',
+        data: {
+            labels: ['KISTI','KBSI','IBS','PAL'],
+            datasets: [
+                { label: '직접논문', data: ['KISTI','KBSI','IBS','PAL'].map(n => (directI.find(x=>x.name===n)||{}).ftop10p_ratio || 0),
+                  backgroundColor: 'rgba(108,140,255,0.8)' },
+                { label: '유발논문', data: ['KISTI','KBSI','IBS','PAL'].map(n => (inducedI.find(x=>x.name===n)||{}).ftop10p_ratio || 0),
+                  backgroundColor: 'rgba(76,175,80,0.8)' },
+            ]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' },
+            datalabels: { display: true, anchor: 'end', align: 'top', color: '#e0e0f0', font: { size: 11 },
+                formatter: v => v > 0 ? v+'%' : '' } },
+            scales: { y: { beginAtZero: true, title: { display: true, text: '상위 10% 비율 (%)' } } } }
+    });
+
+    // ── Chart 4: Q1 비율 ──
+    destroyChart('c11_q1');
+    charts['c11_q1'] = new Chart(document.getElementById('c11_q1'), {
+        type: 'bar',
+        data: {
+            labels: ['KISTI','KBSI','IBS','PAL'],
+            datasets: [
+                { label: '직접논문', data: ['KISTI','KBSI','IBS','PAL'].map(n => (directI.find(x=>x.name===n)||{}).q1_ratio || 0),
+                  backgroundColor: 'rgba(108,140,255,0.8)' },
+                { label: '유발논문', data: ['KISTI','KBSI','IBS','PAL'].map(n => (inducedI.find(x=>x.name===n)||{}).q1_ratio || 0),
+                  backgroundColor: 'rgba(76,175,80,0.8)' },
+            ]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' },
+            datalabels: { display: true, anchor: 'end', align: 'top', color: '#e0e0f0', font: { size: 11 },
+                formatter: v => v > 0 ? v+'%' : '' } },
+            scales: { y: { beginAtZero: true, max: 100, title: { display: true, text: 'Q1 비율 (%)' } } } }
+    });
+
+    // ── Chart 5: 레버리지 ──
+    destroyChart('c11_leverage');
+    charts['c11_leverage'] = new Chart(document.getElementById('c11_leverage'), {
+        type: 'bar',
+        data: {
+            labels: lev.map(x => x.name),
+            datasets: [
+                { label: '직접논문', data: lev.map(x => x.direct), backgroundColor: 'rgba(108,140,255,0.8)' },
+                { label: '유발논문', data: lev.map(x => x.induced), backgroundColor: 'rgba(76,175,80,0.8)' },
+            ]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' },
+            datalabels: { display: false } },
+            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, title: { display: true, text: '논문수' } } } }
+    });
+    addDataTable('c11_leverage', ['기관','직접','유발','합산','유발/직접'],
+        lev.map(x => [x.name, num(x.direct), num(x.induced), num(x.combined), x.ratio+'배']));
+
+    // ── Chart 6: 연도별 유발논문 평균TC 추이 ──
+    const tYears = trend.map(t => t.year);
+    destroyChart('c11_tc_trend');
+    charts['c11_tc_trend'] = new Chart(document.getElementById('c11_tc_trend'), {
+        type: 'line',
+        data: {
+            labels: tYears,
+            datasets: [
+                { label: '한국 평균', data: trend.map(t => t.kr_avg_tc), borderColor: '#888', borderDash: [6,4], borderWidth: 1.5, pointRadius: 0, fill: false },
+                { label: 'KISTI 유발', data: trend.map(t => t.kisti_induced), borderColor: COLORS.blue, borderWidth: 2, pointRadius: 2, fill: false },
+                { label: 'KBSI 유발', data: trend.map(t => t.kbsi_induced), borderColor: COLORS.green, borderWidth: 2, pointRadius: 2, fill: false },
+                { label: 'IBS 유발', data: trend.map(t => t.ibs_induced), borderColor: COLORS.purple, borderWidth: 2, pointRadius: 2, fill: false },
+                { label: 'PAL 유발', data: trend.map(t => t.pal_induced), borderColor: COLORS.orange, borderWidth: 2, pointRadius: 2, fill: false },
+            ]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' }, datalabels: { display: false } },
+            scales: { y: { beginAtZero: true, title: { display: true, text: '평균 피인용수(TC)' } } } }
+    });
+};
+
+// ═══════════════════════════════════════════════════════════
 // Paper Management
 // ═══════════════════════════════════════════════════════════
-let pmTab = 'kisti';  // 'kisti', 'induced', 'kbsi', or 'kbsi_induced'
+let pmTab = 'kisti';  // 'kisti', 'induced', 'kbsi', 'kbsi_induced', 'ibs', 'ibs_induced', or 'pal_induced'
 let pmPage = 1;
 const PM_PER_PAGE = 50;
 let pmYearFilter = '';
@@ -3266,6 +4324,9 @@ function pmGetPapers() {
     if (pmTab === 'induced') return PAPERS_INDUCED;
     if (pmTab === 'kbsi') return PAPERS_KBSI;
     if (pmTab === 'kbsi_induced') return PAPERS_KBSI_INDUCED;
+    if (pmTab === 'ibs') return PAPERS_IBS;
+    if (pmTab === 'ibs_induced') return PAPERS_IBS_INDUCED;
+    if (pmTab === 'pal_induced') return PAPERS_PAL_INDUCED;
     return [];
 }
 
@@ -3434,6 +4495,9 @@ async function saveExclusions() {
                 induced: Array.from(EXCLUSIONS.induced),
                 kbsi: Array.from(EXCLUSIONS.kbsi),
                 kbsi_induced: Array.from(EXCLUSIONS.kbsi_induced),
+                ibs: Array.from(EXCLUSIONS.ibs),
+                ibs_induced: Array.from(EXCLUSIONS.ibs_induced),
+                pal_induced: Array.from(EXCLUSIONS.pal_induced),
             }),
         });
     } catch(e) { console.error('Failed to save exclusions:', e); }
@@ -3441,11 +4505,14 @@ async function saveExclusions() {
 
 // ── Paper Detail Modal ──
 function openPaperModal(ut) {
-    const allPapers = PAPERS_KISTI.concat(PAPERS_INDUCED, PAPERS_KBSI, PAPERS_KBSI_INDUCED);
+    const allPapers = PAPERS_KISTI.concat(PAPERS_INDUCED, PAPERS_KBSI, PAPERS_KBSI_INDUCED, PAPERS_IBS, PAPERS_IBS_INDUCED, PAPERS_PAL_INDUCED);
     const p = allPapers.find(x => x.UT === ut);
     if (!p) return;
     let tab, isInduced = false, modalTitle;
-    if (PAPERS_KBSI_INDUCED.includes(p)) { tab = 'kbsi_induced'; isInduced = true; modalTitle = 'KBSI 유발논문 상세'; }
+    if (PAPERS_PAL_INDUCED.includes(p)) { tab = 'pal_induced'; isInduced = true; modalTitle = 'PAL 유발논문 상세'; }
+    else if (PAPERS_IBS_INDUCED.includes(p)) { tab = 'ibs_induced'; isInduced = true; modalTitle = 'IBS 유발논문 상세'; }
+    else if (PAPERS_IBS.includes(p)) { tab = 'ibs'; modalTitle = 'IBS 논문 상세'; }
+    else if (PAPERS_KBSI_INDUCED.includes(p)) { tab = 'kbsi_induced'; isInduced = true; modalTitle = 'KBSI 유발논문 상세'; }
     else if (PAPERS_KBSI.includes(p)) { tab = 'kbsi'; modalTitle = 'KBSI 논문 상세'; }
     else if (PAPERS_INDUCED.includes(p)) { tab = 'induced'; isInduced = true; modalTitle = 'KISTI 유발논문 상세'; }
     else { tab = 'kisti'; modalTitle = 'KISTI 논문 상세'; }
@@ -3527,6 +4594,9 @@ renderers.papers = function(D) {
     PAPERS_INDUCED.forEach(p => allYears.add(p.PY));
     PAPERS_KBSI.forEach(p => allYears.add(p.PY));
     PAPERS_KBSI_INDUCED.forEach(p => allYears.add(p.PY));
+    PAPERS_IBS.forEach(p => allYears.add(p.PY));
+    PAPERS_IBS_INDUCED.forEach(p => allYears.add(p.PY));
+    PAPERS_PAL_INDUCED.forEach(p => allYears.add(p.PY));
     const yearOpts = Array.from(allYears).sort((a,b)=>b-a).map(y => `<option value="${y}">${y}</option>`).join('');
 
     el.innerHTML = `
@@ -3536,6 +4606,9 @@ renderers.papers = function(D) {
             <div class="pm-tab ${pmTab==='induced'?'active':''}" onclick="pmSwitchTab('induced')">KISTI 유발 (${num(PAPERS_INDUCED.length)})</div>
             <div class="pm-tab ${pmTab==='kbsi'?'active':''}" onclick="pmSwitchTab('kbsi')">KBSI 논문 (${num(PAPERS_KBSI.length)})</div>
             <div class="pm-tab ${pmTab==='kbsi_induced'?'active':''}" onclick="pmSwitchTab('kbsi_induced')">KBSI 유발 (${num(PAPERS_KBSI_INDUCED.length)})</div>
+            <div class="pm-tab ${pmTab==='ibs'?'active':''}" onclick="pmSwitchTab('ibs')">IBS 논문 (${num(PAPERS_IBS.length)})</div>
+            <div class="pm-tab ${pmTab==='ibs_induced'?'active':''}" onclick="pmSwitchTab('ibs_induced')">IBS 유발 (${num(PAPERS_IBS_INDUCED.length)})</div>
+            <div class="pm-tab ${pmTab==='pal_induced'?'active':''}" onclick="pmSwitchTab('pal_induced')">PAL 유발 (${num(PAPERS_PAL_INDUCED.length)})</div>
         </div>
         <div class="pm-toolbar">
             <select id="pmYearSel" onchange="pmFilterYear(this.value)">
@@ -3606,6 +4679,8 @@ function recomputeAllStats(startYear, endYear) {
     const iPapers = PAPERS_INDUCED.filter(p => !EXCLUSIONS.induced.has(p.UT) && p.PY >= startYear && p.PY <= endYear);
     const bPapers = PAPERS_KBSI.filter(p => !EXCLUSIONS.kbsi.has(p.UT) && p.PY >= startYear && p.PY <= endYear);
     const biPapers = PAPERS_KBSI_INDUCED.filter(p => !EXCLUSIONS.kbsi_induced.has(p.UT) && p.PY >= startYear && p.PY <= endYear);
+    const ibsPapers = PAPERS_IBS.filter(p => !EXCLUSIONS.ibs.has(p.UT) && p.PY >= startYear && p.PY <= endYear);
+    const ibsiPapers = PAPERS_IBS_INDUCED.filter(p => !EXCLUSIONS.ibs_induced.has(p.UT) && p.PY >= startYear && p.PY <= endYear);
     const years = [];
     for (let y = startYear; y <= endYear; y++) years.push(y);
 
@@ -3633,6 +4708,10 @@ function recomputeAllStats(startYear, endYear) {
     const biTotal = biPapers.length;
     const bTcSum = bPapers.reduce((s,p) => s + (p.TC||0), 0);
     const biTcSum = biPapers.reduce((s,p) => s + (p.TC||0), 0);
+    const ibsTotal = ibsPapers.length;
+    const ibsiTotal = ibsiPapers.length;
+    const ibsTcSum = ibsPapers.reduce((s,p) => s + (p.TC||0), 0);
+    const ibsiTcSum = ibsiPapers.reduce((s,p) => s + (p.TC||0), 0);
     DATA.summary = {
         kisti_papers: kTotal,
         induced_papers: iTotal,
@@ -3647,6 +4726,12 @@ function recomputeAllStats(startYear, endYear) {
         kbsi_induced_avg_tc: round2(biTcSum / Math.max(biTotal, 1), 1),
         kbsi_kr_share: round2(bTotal / krTotal * 100, 2),
         kbsi_combined_kr_share: round2((bTotal + biTotal) / krTotal * 100, 2),
+        ibs_papers: ibsTotal,
+        ibs_induced_papers: ibsiTotal,
+        ibs_avg_tc: round2(ibsTcSum / Math.max(ibsTotal, 1), 1),
+        ibs_induced_avg_tc: round2(ibsiTcSum / Math.max(ibsiTotal, 1), 1),
+        ibs_kr_share: round2(ibsTotal / krTotal * 100, 2),
+        ibs_combined_kr_share: round2((ibsTotal + ibsiTotal) / krTotal * 100, 2),
         kr_avg_tc: round2(Object.values(krTcByYear).reduce((s,v)=>s+v,0) / Math.max(krTotal,1), 1),
     };
 
@@ -4308,6 +5393,294 @@ function recomputeAllStats(startYear, endYear) {
         };
     }
 
+    // ── IBS sec7_1: 발표 현황 ──
+    const ib_byYear = {}, ib_byYearDb = {};
+    ibsPapers.forEach(p => {
+        const y = p.PY;
+        if (y >= startYear && y <= endYear) {
+            ib_byYear[y] = (ib_byYear[y]||0) + 1;
+            if (!ib_byYearDb[y]) ib_byYearDb[y] = {};
+            ib_byYearDb[y][p.db||'기타'] = (ib_byYearDb[y][p.db||'기타']||0) + 1;
+        }
+    });
+    DATA.sec7_1 = {
+        total: ibsTotal,
+        years: years.map(y => {
+            const cnt = ib_byYear[y]||0;
+            const kr = krByYear[String(y)]||1;
+            const prev = ib_byYear[y-1]||0;
+            return {
+                year: y, count: cnt,
+                growth_rate: prev > 0 ? round2((cnt-prev)/prev*100, 1) : 0,
+                kr_share: round2(cnt/kr*100, 2),
+                scie: (ib_byYearDb[y]||{}).SCIE||0,
+                ssci: (ib_byYearDb[y]||{}).SSCI||0,
+                ahci: (ib_byYearDb[y]||{}).AHCI||0,
+            };
+        }),
+    };
+
+    // ── sec7_2: IBS 분야별 현황 ──
+    const ib_byField = {};
+    ibsPapers.forEach(p => { if (p.std_field) ib_byField[p.std_field] = (ib_byField[p.std_field]||0) + 1; });
+    const ib_fieldTotal = Object.values(ib_byField).reduce((s,v)=>s+v,0) || 1;
+    const ibFieldData = ESI_22_FIELDS.map(f => {
+        const cnt = ib_byField[f]||0;
+        const krCnt = krByField[f]||1;
+        const ibShare = cnt/ib_fieldTotal;
+        const krShare = krCnt/kr_fieldTotal;
+        return { field: f, count: cnt, rca: krShare > 0 ? round2(ibShare/krShare, 2) : 0, kbsi_share: round2(ibShare*100, 1) };
+    });
+    ibFieldData.sort((a,b) => b.count - a.count);
+    DATA.sec7_2 = { fields: ibFieldData };
+
+    // ── sec7_3: IBS 영향력 ──
+    const ib_tcByYear = {};
+    ibsPapers.forEach(p => { const y = p.PY; if (!ib_tcByYear[y]) ib_tcByYear[y] = []; ib_tcByYear[y].push(p.TC||0); });
+    const ibAllTcs = ibsPapers.map(p => p.TC||0);
+    const ibTcBins = [0,1,5,10,20,50,100,200,500];
+    DATA.sec7_3 = {
+        years: years.map(y => {
+            const tcs = ib_tcByYear[y]||[];
+            const avg = tcs.length ? round2(tcs.reduce((s,v)=>s+v,0)/tcs.length, 2) : 0;
+            const krAvg = round2((krTcByYear[String(y)]||0)/(krByYear[String(y)]||1), 2);
+            let hcp = 0;
+            if (tcs.length) { const sorted = [...tcs].sort((a,b)=>b-a); const thr = sorted[Math.max(0, Math.ceil(tcs.length*0.01)-1)]||0; hcp = tcs.filter(t=>t>=thr&&t>0).length; }
+            return { year: y, avg_tc: avg, kr_avg_tc: krAvg, total_tc: tcs.reduce((s,v)=>s+v,0), paper_count: tcs.length, hcp_count: hcp };
+        }),
+        tc_distribution: ibTcBins.map((lo,i) => {
+            const hi = i+1<ibTcBins.length ? ibTcBins[i+1] : Infinity;
+            return { label: hi===Infinity ? lo+'+' : lo+'-'+(hi-1), count: ibAllTcs.filter(t=>t>=lo&&t<hi).length };
+        }),
+    };
+
+    // ── sec7_4: IBS 협력 분석 — skip (requires inst_data, not available in frontend) ──
+    // sec7_4, sec7_5 are not recomputed — they use inst_data/jcr_data which are not in frontend
+
+    // ── IBS sec8_1: 유발논문 현황 ──
+    const ibi_byYear = {}, ibi_byYearDb = {};
+    ibsiPapers.forEach(p => {
+        const y = p.PY;
+        if (y >= startYear && y <= endYear) {
+            ibi_byYear[y] = (ibi_byYear[y]||0) + 1;
+            if (!ibi_byYearDb[y]) ibi_byYearDb[y] = {};
+            ibi_byYearDb[y][p.db||'기타'] = (ibi_byYearDb[y][p.db||'기타']||0) + 1;
+        }
+    });
+    DATA.sec8_1 = {
+        total: ibsiTotal,
+        years: years.map(y => {
+            const cnt = ibi_byYear[y]||0;
+            const kr = krByYear[String(y)]||1;
+            return { year: y, count: cnt, kr_share: round2(cnt/kr*100, 3),
+                scie: (ibi_byYearDb[y]||{}).SCIE||0, ssci: (ibi_byYearDb[y]||{}).SSCI||0, ahci: (ibi_byYearDb[y]||{}).AHCI||0 };
+        }),
+    };
+
+    // ── sec8_2: IBS 인프라별 ──
+    DATA.sec8_2 = {
+        infra_total: { 'IBS 연구센터 지원': ibsiTotal },
+        categories: ['IBS 연구센터 지원'],
+        infra_by_year: years.map(y => ({ year: y, 'IBS 연구센터 지원': ibi_byYear[y]||0 })),
+    };
+
+    // ── sec8_4: IBS 유발논문 분야별 ──
+    const ibi_byField = {};
+    ibsiPapers.forEach(p => { if (p.std_field) ibi_byField[p.std_field] = (ibi_byField[p.std_field]||0) + 1; });
+    const ibi_fieldTotal = Object.values(ibi_byField).reduce((s,v)=>s+v,0) || 1;
+    const ibiFieldData = ESI_22_FIELDS.map(f => {
+        const cnt = ibi_byField[f]||0;
+        const krCnt = krByField[f]||1;
+        const ibShare = cnt/ibi_fieldTotal;
+        const krShare = krCnt/kr_fieldTotal;
+        return { field: f, count: cnt, rca: krShare > 0 ? round2(ibShare/krShare, 2) : 0 };
+    });
+    ibiFieldData.sort((a,b) => b.count - a.count);
+    DATA.sec8_4 = { fields: ibiFieldData };
+
+    // ── sec8_5: IBS 유발논문 영향력 ──
+    const ibi_tcByYear = {};
+    ibsiPapers.forEach(p => { const y = p.PY; if (!ibi_tcByYear[y]) ibi_tcByYear[y] = []; ibi_tcByYear[y].push(p.TC||0); });
+    DATA.sec8_5 = {
+        years: years.map(y => {
+            const tcs = ibi_tcByYear[y]||[];
+            const avg = tcs.length ? round2(tcs.reduce((s,v)=>s+v,0)/tcs.length, 2) : 0;
+            const krAvg = round2((krTcByYear[String(y)]||0)/(krByYear[String(y)]||1), 2);
+            let hcp = 0;
+            if (tcs.length) { const sorted = [...tcs].sort((a,b)=>b-a); const thr = sorted[Math.max(0, Math.ceil(tcs.length*0.01)-1)]||0; hcp = tcs.filter(t=>t>=thr&&t>0).length; }
+            return { year: y, avg_tc: avg, kr_avg_tc: krAvg, total_tc: tcs.reduce((s,v)=>s+v,0), paper_count: tcs.length, hcp_count: hcp };
+        }),
+    };
+
+    // ── sec9_1: KISTI vs IBS 직접 비교 ──
+    const ibsJcrMatch = ibsPapers.reduce((acc,p) => {
+        const q = p.quartile; if (q && typeof q === 'string' && q.startsWith('Q1')) acc.q1++;
+        if (q) acc.matched++; return acc;
+    }, {q1:0, matched:0});
+    DATA.sec9_1 = {
+        kisti: { papers: kTotal, avg_tc: round2(kTcSum/Math.max(kTotal,1),2), total_tc: kTcSum,
+            q1_ratio: round2(kPapers.reduce((acc,p) => { const q = p.quartile; if (q && typeof q === 'string' && q.startsWith('Q1')) acc.q1++; if (q) acc.matched++; return acc; }, {q1:0,matched:0}).q1 / Math.max(kPapers.reduce((acc,p) => { const q = p.quartile; if (q) acc++; return acc; }, 0),1)*100, 1) },
+        ibs: { papers: ibsTotal, avg_tc: round2(ibsTcSum/Math.max(ibsTotal,1),2), total_tc: ibsTcSum,
+            q1_ratio: round2(ibsJcrMatch.q1/Math.max(ibsJcrMatch.matched,1)*100, 1) },
+    };
+
+    // ── sec9_2: KISTI vs IBS 유발논문 비교 ──
+    const ibsiJcrMatch = ibsiPapers.reduce((acc,p) => {
+        const q = p.quartile; if (q && typeof q === 'string' && q.startsWith('Q1')) acc.q1++;
+        if (q) acc.matched++; return acc;
+    }, {q1:0, matched:0});
+    const iJcrMatch = iPapers.reduce((acc,p) => {
+        const q = p.quartile; if (q && typeof q === 'string' && q.startsWith('Q1')) acc.q1++;
+        if (q) acc.matched++; return acc;
+    }, {q1:0, matched:0});
+    DATA.sec9_2 = {
+        kisti_induced: { papers: iTotal, avg_tc: round2(iTcSum/Math.max(iTotal,1),2), total_tc: iTcSum,
+            q1_ratio: round2(iJcrMatch.q1/Math.max(iJcrMatch.matched,1)*100, 1) },
+        ibs_induced: { papers: ibsiTotal, avg_tc: round2(ibsiTcSum/Math.max(ibsiTotal,1),2), total_tc: ibsiTcSum,
+            q1_ratio: round2(ibsiJcrMatch.q1/Math.max(ibsiJcrMatch.matched,1)*100, 1) },
+    };
+
+    // ── sec9_3: KISTI vs IBS 종합 비교 ──
+    DATA.sec9_3 = {
+        years: years.map(y => {
+            const kCnt = (k_byYear[y]||0);
+            const kiCnt = (i_byYear[y]||0);
+            const ibCnt = (ib_byYear[y]||0);
+            const ibiCnt = (ibi_byYear[y]||0);
+            const kr = krByYear[String(y)]||1;
+            return {
+                year: y, kisti: kCnt, kisti_induced: kiCnt, ibs: ibCnt, ibs_induced: ibiCnt,
+                kisti_total: kCnt+kiCnt, ibs_total: ibCnt+ibiCnt,
+                kisti_kr_share: round2((kCnt+kiCnt)/kr*100, 3),
+                ibs_kr_share: round2((ibCnt+ibiCnt)/kr*100, 3),
+            };
+        }),
+        tc_trend: years.map(y => {
+            const krAvg = round2((krTcByYear[String(y)]||0)/(krByYear[String(y)]||1), 2);
+            const kTcs = k_tcByYear[y]||[]; const iTcs = i_tcByYear[y]||[];
+            const ibTcs = ib_tcByYear[y]||[]; const ibiTcs = ibi_tcByYear[y]||[];
+            return {
+                year: y,
+                kisti_avg_tc: kTcs.length ? round2(kTcs.reduce((s,v)=>s+v,0)/kTcs.length,2) : 0,
+                kisti_ind_avg_tc: iTcs.length ? round2(iTcs.reduce((s,v)=>s+v,0)/iTcs.length,2) : 0,
+                ibs_avg_tc: ibTcs.length ? round2(ibTcs.reduce((s,v)=>s+v,0)/ibTcs.length,2) : 0,
+                ibs_ind_avg_tc: ibiTcs.length ? round2(ibiTcs.reduce((s,v)=>s+v,0)/ibiTcs.length,2) : 0,
+                kr_avg_tc: krAvg,
+            };
+        }),
+        summary: {
+            kisti: DATA.sec9_1.kisti, kisti_induced: DATA.sec9_2.kisti_induced,
+            ibs: DATA.sec9_1.ibs, ibs_induced: DATA.sec9_2.ibs_induced,
+        },
+    };
+
+    // ═══ PAL 유발논문 재계산 ═══
+    const palPapers = PAPERS_PAL_INDUCED.filter(p => p.PY >= startYear && p.PY <= endYear && !EXCLUSIONS.pal_induced.has(p.UT));
+    const palTotal = palPapers.length;
+    const palTcSum = palPapers.reduce((s,p) => s + (p.TC||0), 0);
+    DATA.summary.pal_induced_papers = palTotal;
+    DATA.summary.pal_induced_avg_tc = round2(palTcSum / Math.max(palTotal, 1), 1);
+    DATA.summary.pal_induced_kr_share = round2(palTotal / krTotal * 100, 2);
+
+    const pal_byYear = {}, pal_byYearDb = {}, pal_tcByYear = {};
+    palPapers.forEach(p => {
+        const y = p.PY;
+        pal_byYear[y] = (pal_byYear[y]||0) + 1;
+        if (!pal_byYearDb[y]) pal_byYearDb[y] = {};
+        pal_byYearDb[y][p.db||'기타'] = (pal_byYearDb[y][p.db||'기타']||0) + 1;
+        if (!pal_tcByYear[y]) pal_tcByYear[y] = [];
+        pal_tcByYear[y].push(p.TC||0);
+    });
+
+    // sec10_1: PAL 유발논문 현황
+    DATA.sec10_1 = {
+        years: years.map(y => {
+            const cnt = pal_byYear[y]||0;
+            const kr = krByYear[String(y)]||1;
+            return { year: y, count: cnt, kr_share: round2(cnt/kr*100,3),
+                scie: (pal_byYearDb[y]||{}).SCIE||0, ssci: (pal_byYearDb[y]||{}).SSCI||0, ahci: (pal_byYearDb[y]||{}).AHCI||0 };
+        }),
+        total: palTotal,
+    };
+
+    // sec10_4: PAL 분야별 분석
+    const palByField = {};
+    palPapers.forEach(p => { if (p.std_field) palByField[p.std_field] = (palByField[p.std_field]||0)+1; });
+    const palFieldTotal = Object.values(palByField).reduce((s,v)=>s+v,0)||1;
+    DATA.sec10_4 = { fields: ESI_22_FIELDS.map(f => {
+        const cnt = palByField[f]||0; const krCnt = krByField[f]||1;
+        const iShare = cnt/palFieldTotal; const kShare = krCnt/kr_fieldTotal;
+        return { field: f, count: cnt, rca: round2(iShare/kShare,2) };
+    }).sort((a,b) => b.count - a.count) };
+
+    // sec10_5: PAL 영향력 분석
+    DATA.sec10_5 = { years: years.map(y => {
+        const tcs = pal_tcByYear[y]||[];
+        const avg = tcs.length ? round2(tcs.reduce((s,v)=>s+v,0)/tcs.length,2) : 0;
+        const krAvg = round2((krTcByYear[String(y)]||0)/(krByYear[String(y)]||1),2);
+        let hcp = 0;
+        if (tcs.length) { const st = [...tcs].sort((a,b)=>b-a); const idx = Math.max(1,Math.floor(st.length*0.01)); const th = st[idx-1]; hcp = tcs.filter(t=>t>=th&&t>0).length; }
+        return { year: y, avg_tc: avg, kr_avg_tc: krAvg, total_tc: tcs.reduce((s,v)=>s+v,0), paper_count: tcs.length, hcp_count: hcp };
+    })};
+
+    // ═══ sec11_1: 질적 우수성 종합 비교 재계산 ═══
+    function _calcQ1(papers) {
+        let q1=0, matched=0;
+        papers.forEach(p => { const q = p.quartile; if (q && typeof q === 'string') { matched++; if (q.startsWith('Q1')) q1++; } });
+        return round2(q1/Math.max(matched,1)*100, 1);
+    }
+    function _calcFtop10p(papers) {
+        const top10p = KOREA.top10p_by_year_field || {};
+        let top=0, valid=0;
+        papers.forEach(p => {
+            const f = p.std_field; if (!f) return;
+            valid++;
+            const thr = ((top10p[String(p.PY)]||{})[f]) ?? Infinity;
+            if ((p.TC||0) >= thr && (p.TC||0) > 0) top++;
+        });
+        return round2(top/Math.max(valid,1)*100, 1);
+    }
+    function _calcMNCS(papers) {
+        const avgTcYF = KOREA.avg_tc_by_year_field || {};
+        let totalNCS=0, valid=0;
+        papers.forEach(p => {
+            const f = p.std_field; if (!f) return;
+            const krAvg = ((avgTcYF[String(p.PY)]||{})[f]) || 0;
+            if (krAvg <= 0) return;
+            valid++; totalNCS += (p.TC||0) / krAvg;
+        });
+        return valid ? round2(totalNCS/valid, 3) : null;
+    }
+    const allSets11 = [
+        ['KISTI','직접',kPapers], ['KISTI','유발',iPapers],
+        ['KBSI','직접',bPapers], ['KBSI','유발',biPapers],
+        ['IBS','직접',ibsPapers], ['IBS','유발',ibsiPapers],
+        ['PAL','유발',palPapers],
+    ];
+    DATA.sec11_1 = {
+        institutions: allSets11.map(([name,type,papers]) => ({
+            name, type, papers: papers.length,
+            avg_tc: round2(papers.reduce((s,p)=>s+(p.TC||0),0)/Math.max(papers.length,1), 2),
+            mncs: _calcMNCS(papers),
+            ftop10p_ratio: _calcFtop10p(papers),
+            q1_ratio: _calcQ1(papers),
+        })),
+        leverage: [
+            {name:'KISTI', direct:kTotal, induced:iTotal, combined:kTotal+iTotal, ratio:round2(iTotal/Math.max(kTotal,1),2)},
+            {name:'KBSI', direct:bTotal, induced:biTotal, combined:bTotal+biTotal, ratio:round2(biTotal/Math.max(bTotal,1),2)},
+            {name:'IBS', direct:ibsTotal, induced:ibsiTotal, combined:ibsTotal+ibsiTotal, ratio:round2(ibsiTotal/Math.max(ibsTotal,1),2)},
+        ],
+        budget: DATA.sec11_1 ? DATA.sec11_1.budget : null,
+        tc_trend: years.map(y => {
+            const _ya = (papers, yr) => { const t = papers.filter(p=>p.PY===yr); return t.length ? round2(t.reduce((s,p)=>s+(p.TC||0),0)/t.length,2) : 0; };
+            return { year:y, kr_avg_tc: round2((krTcByYear[String(y)]||0)/(krByYear[String(y)]||1),2),
+                kisti_direct:_ya(kPapers,y), kisti_induced:_ya(iPapers,y),
+                kbsi_direct:_ya(bPapers,y), kbsi_induced:_ya(biPapers,y),
+                ibs_direct:_ya(ibsPapers,y), ibs_induced:_ya(ibsiPapers,y),
+                pal_induced:_ya(palPapers,y) };
+        }),
+    };
+
     // Reset rendered flags to force re-render on next visit
     Object.keys(rendered).forEach(k => { if (k !== 'papers') rendered[k] = false; });
 
@@ -4321,7 +5694,7 @@ function recomputeAllStats(startYear, endYear) {
         }
     }
 
-    console.log(`recomputeAllStats: ${(performance.now()-t0).toFixed(1)}ms, kisti=${kTotal}, induced=${iTotal}, kbsi=${bTotal}, kbsi_induced=${biTotal}`);
+    console.log(`recomputeAllStats: ${(performance.now()-t0).toFixed(1)}ms, kisti=${kTotal}, induced=${iTotal}, kbsi=${bTotal}, kbsi_induced=${biTotal}, ibs=${ibsTotal}, ibs_induced=${ibsiTotal}, pal=${palTotal}`);
 }
 
 function round2(v, d) { const m = Math.pow(10, d); return Math.round(v * m) / m; }
