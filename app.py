@@ -33,7 +33,8 @@ def _get_flask_secret_key():
         from google.cloud import secretmanager
         client = secretmanager.SecretManagerServiceClient()
         project = os.environ.get("GCP_PROJECT", "ailibrary-kisti")
-        name = f"projects/{project}/secrets/flask-secret-key/versions/latest"
+        secret_name = os.environ.get("FLASK_SECRET_NAME", "flask-secret-key")
+        name = f"projects/{project}/secrets/{secret_name}/versions/latest"
         return client.access_secret_version(request={"name": name}).payload.data.decode("utf-8")
     except Exception:
         return secrets.token_hex(32)
@@ -432,7 +433,24 @@ def api_export_html():
     ver = version or meta.get("data_version", "unknown")
     filename = f"dashboard_v{ver}_{period}.html"
 
-    buf = io.BytesIO(html.encode("utf-8"))
+    encoded = html.encode("utf-8")
+
+    # 감사 로그
+    try:
+        from audit import log_event
+        log_event("download_html",
+                  email=current_user.email if current_user.is_authenticated else "",
+                  details={
+                      "filename": filename,
+                      "size_bytes": len(encoded),
+                      "size_mb": round(len(encoded) / 1024 / 1024, 2),
+                      "data_version": ver,
+                      "period": period,
+                  })
+    except Exception:
+        pass
+
+    buf = io.BytesIO(encoded)
     return send_file(
         buf, mimetype="text/html; charset=utf-8",
         as_attachment=True, download_name=filename,
@@ -455,6 +473,25 @@ def _load_exclusions():
                 data[k] = []
         return data
     return defaults
+
+
+@app.route("/api/audit/zip", methods=["POST"])
+@login_required
+@csrf.exempt
+def api_audit_zip():
+    """ZIP 일괄저장 완료 시 클라이언트가 호출하는 로그 전용 엔드포인트."""
+    from audit import log_event
+    data = request.get_json(force=True) or {}
+    log_event("download_zip",
+              email=current_user.email if current_user.is_authenticated else "",
+              details={
+                  "filename": data.get("filename", ""),
+                  "file_count": int(data.get("file_count", 0)),
+                  "size_mb": float(data.get("size_mb", 0)),
+                  "data_version": data.get("data_version", ""),
+                  "period": data.get("period", ""),
+              })
+    return jsonify({"ok": True})
 
 
 @app.route("/api/exclusions", methods=["GET"])

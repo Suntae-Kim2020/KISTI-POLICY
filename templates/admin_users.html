@@ -201,6 +201,7 @@
     <h1>사용자 관리</h1>
     <div class="actions">
       <a href="{{ url_for('index') }}">← 대시보드</a>
+      <a href="{{ url_for('admin.audit_page') }}">📋 감사 로그</a>
       <span class="user-info">{{ current_email }} (관리자)</span>
       <a href="{{ url_for('auth.logout') }}">로그아웃</a>
     </div>
@@ -237,6 +238,7 @@
           <th>이름</th>
           <th>역할</th>
           <th>등록일</th>
+          <th>최근 로그인 (UTC)</th>
           <th>실패</th>
           <th>작업</th>
         </tr>
@@ -245,7 +247,7 @@
         {% for email, u in users %}
         <tr>
           <td class="email">
-            {{ email }}
+            <a href="{{ url_for('admin.user_history', email=email) }}" style="color: var(--text); text-decoration: none;">{{ email }}</a>
             {% if email == current_email %}<span class="me">(나)</span>{% endif %}
           </td>
           <td>{{ u.name }}</td>
@@ -257,6 +259,13 @@
             {% endif %}
           </td>
           <td>{{ u.created_at }}</td>
+          <td style="color: var(--muted); font-size: 12px; font-family: 'SF Mono', Menlo, monospace;">
+            {% if last_logins.get(email) %}
+              {{ last_logins[email].strftime('%Y-%m-%d %H:%M') }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
           <td>
             {% if lockouts.get(email, 0) > 0 %}
               <span class="badge lock">{{ lockouts[email] }}회</span>

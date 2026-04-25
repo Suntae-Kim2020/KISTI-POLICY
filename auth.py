@@ -10,12 +10,14 @@ from datetime import datetime
 from pathlib import Path
 
 import bcrypt
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import UserMixin, login_user, logout_user, login_required, current_user
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
 from wtforms import BooleanField, PasswordField, StringField
 from wtforms.validators import DataRequired, Email
+
+from audit import log_event, new_session_id
 
 # ── Secret Manager 연동 ──────────────────────────────────────
 _USERS_CACHE = {"data": None, "ts": 0}
@@ -157,6 +159,7 @@ def login():
         if locked_for > 0:
             mins = locked_for // 60 + 1
             error = f"로그인 실패 5회 초과. 약 {mins}분 후 다시 시도하세요."
+            log_event("login_failed", email=email, details={"reason": "locked", "lockout_seconds": locked_for})
         else:
             users = load_users()
             user_data = users.get(email)
@@ -164,6 +167,13 @@ def login():
                 clear_failures(email)
                 user = User(email=email, data=user_data)
                 login_user(user, remember=remember)
+                sid = new_session_id()
+                session["sid"] = sid
+                session["login_time"] = datetime.utcnow().isoformat()
+                log_event("login", email=email,
+                          details={"remember": bool(remember),
+                                   "is_admin": bool(user_data.get("is_admin"))},
+                          session_id=sid)
                 next_page = request.args.get("next") or url_for("index")
                 if not next_page.startswith("/"):
                     next_page = url_for("index")
@@ -173,8 +183,11 @@ def login():
                 attempts_left = MAX_ATTEMPTS - len(_FAILED_ATTEMPTS.get(email, []))
                 if attempts_left <= 0:
                     error = "로그인 실패 5회 초과. 10분 후 다시 시도하세요."
+                    log_event("login_failed", email=email, details={"reason": "locked_now"})
                 else:
                     error = f"이메일 또는 비밀번호가 일치하지 않습니다. (남은 시도: {attempts_left}회)"
+                    log_event("login_failed", email=email,
+                              details={"reason": "bad_password", "attempts_left": attempts_left})
 
     return render_template("login.html", form=form, error=error)
 
@@ -182,5 +195,23 @@ def login():
 @auth_bp.route("/logout")
 @login_required
 def logout():
+    # 세션 기간 계산 (login_time이 session에 있으면)
+    email = current_user.email if current_user.is_authenticated else ""
+    sid = session.get("sid")
+    login_time_iso = session.get("login_time")
+    duration_seconds = None
+    if login_time_iso:
+        try:
+            lt = datetime.fromisoformat(login_time_iso)
+            duration_seconds = int((datetime.utcnow() - lt).total_seconds())
+        except Exception:
+            pass
+
+    log_event("logout", email=email,
+              details={"duration_seconds": duration_seconds} if duration_seconds is not None else None,
+              session_id=sid)
+
     logout_user()
+    session.pop("sid", None)
+    session.pop("login_time", None)
     return redirect(url_for("auth.login"))

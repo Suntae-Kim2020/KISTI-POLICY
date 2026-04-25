@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import pickle
+import re
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -410,6 +411,15 @@ def load_data(config: RunConfig):
     pal_induced_papers = json.loads(pal_induced_path.read_text(encoding="utf-8"))
     print(f"  PAL 유발논문 JSON: {len(pal_induced_papers):,}건")
 
+    # Clarivate HCP 인덱스 로딩 (있으면)
+    hcp_path = config.base_path / "hcp_index.json"
+    hcp_index = None
+    if hcp_path.exists():
+        hcp_index = json.loads(hcp_path.read_text(encoding="utf-8"))
+        print(f"  Clarivate HCP 인덱스: {hcp_index.get('total', 0):,}편")
+    else:
+        print(f"  ⚠ HCP 인덱스 없음 (scan_hcp_index.py 실행 필요): {hcp_path}")
+
     # 출연연 학위별 인력 CSV 로딩
     gri_csv_path = Path(__file__).parent / "rawdata" / "국가과학기술연구회 소관 출연연 학위별 인력 정보(정규인력 전체)_20211231.csv"
     gri_personnel = {}
@@ -428,7 +438,7 @@ def load_data(config: RunConfig):
     else:
         print(f"  ⚠ 출연연 인력 CSV 없음: {gri_csv_path}")
 
-    return wos_data, inst_data, jcr_data, induced_papers, kbsi_induced_papers, ibs_induced_papers, pal_induced_papers, gri_personnel
+    return wos_data, inst_data, jcr_data, induced_papers, kbsi_induced_papers, ibs_induced_papers, pal_induced_papers, gri_personnel, hcp_index
 
 
 # ═══════════════════════════════════════════════════════════
@@ -828,13 +838,7 @@ def compute_sec1(kisti_records, kr_by_year, kr_tc_by_year, kr_by_field,
         c1 = r.get("C1", "")
         if not c1:
             continue
-        countries = set()
-        for block in c1.split("; "):
-            parts = block.strip().rstrip(".").split(", ")
-            if len(parts) >= 2:
-                country = parts[-1].strip().upper()
-                if country and country != "SOUTH KOREA" and len(country) >= 4:
-                    countries.add(country)
+        countries = {c for c in _parse_countries(c1) if c != "SOUTH KOREA"}
         for c in countries:
             country_counter[c] += 1
     top_countries = [{"country": c, "count": n} for c, n in country_counter.most_common(15)]
@@ -1067,13 +1071,7 @@ def compute_sec2(pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_field,
         c1 = r.get("C1", "")
         if not c1:
             continue
-        countries = set()
-        for block in c1.split("; "):
-            parts = block.strip().rstrip(".").split(", ")
-            if len(parts) >= 2:
-                country = parts[-1].strip().upper()
-                if country and country != "SOUTH KOREA" and len(country) >= 4:
-                    countries.add(country)
+        countries = {c for c in _parse_countries(c1) if c != "SOUTH KOREA"}
         for c in countries:
             country_counter[c] += 1
     top_countries = [{"country": c, "count": n} for c, n in country_counter.most_common(15)]
@@ -1618,13 +1616,7 @@ def compute_sec4(kbsi_records, kr_by_year, kr_tc_by_year, kr_by_field,
         c1 = r.get("C1", "")
         if not c1:
             continue
-        countries = set()
-        for block in c1.split("; "):
-            parts = block.strip().rstrip(".").split(", ")
-            if len(parts) >= 2:
-                country = parts[-1].strip().upper()
-                if country and country != "SOUTH KOREA" and len(country) >= 4:
-                    countries.add(country)
+        countries = {c for c in _parse_countries(c1) if c != "SOUTH KOREA"}
         for c in countries:
             country_counter[c] += 1
     top_countries = [{"country": c, "count": n} for c, n in country_counter.most_common(15)]
@@ -1847,13 +1839,7 @@ def compute_sec5(kbsi_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_fie
         c1 = r.get("C1", "")
         if not c1:
             continue
-        countries = set()
-        for block in c1.split("; "):
-            parts = block.strip().rstrip(".").split(", ")
-            if len(parts) >= 2:
-                country = parts[-1].strip().upper()
-                if country and country != "SOUTH KOREA" and len(country) >= 4:
-                    countries.add(country)
+        countries = {c for c in _parse_countries(c1) if c != "SOUTH KOREA"}
         for c in countries:
             country_counter[c] += 1
     top_countries = [{"country": c, "count": n} for c, n in country_counter.most_common(15)]
@@ -2312,13 +2298,7 @@ def compute_sec7(ibs_records, kr_by_year, kr_tc_by_year, kr_by_field,
         c1 = r.get("C1", "")
         if not c1:
             continue
-        countries = set()
-        for block in c1.split("; "):
-            parts = block.strip().rstrip(".").split(", ")
-            if len(parts) >= 2:
-                country = parts[-1].strip().upper()
-                if country and country != "SOUTH KOREA" and len(country) >= 4:
-                    countries.add(country)
+        countries = {c for c in _parse_countries(c1) if c != "SOUTH KOREA"}
         for c in countries:
             country_counter[c] += 1
     top_countries = [{"country": c, "count": n} for c, n in country_counter.most_common(15)]
@@ -2541,13 +2521,7 @@ def compute_sec8(ibs_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_fiel
         c1 = r.get("C1", "")
         if not c1:
             continue
-        countries = set()
-        for block in c1.split("; "):
-            parts = block.strip().rstrip(".").split(", ")
-            if len(parts) >= 2:
-                country = parts[-1].strip().upper()
-                if country and country != "SOUTH KOREA" and len(country) >= 4:
-                    countries.add(country)
+        countries = {c for c in _parse_countries(c1) if c != "SOUTH KOREA"}
         for c in countries:
             country_counter[c] += 1
     top_countries = [{"country": c, "count": n} for c, n in country_counter.most_common(15)]
@@ -2806,13 +2780,7 @@ def compute_sec10(pal_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_fie
         c1 = r.get("C1", "")
         if not c1:
             continue
-        countries = set()
-        for block in c1.split("; "):
-            parts = block.strip().rstrip(".").split(", ")
-            if len(parts) >= 2:
-                country = parts[-1].strip().upper()
-                if country and country != "SOUTH KOREA" and len(country) >= 4:
-                    countries.add(country)
+        countries = {c for c in _parse_countries(c1) if c != "SOUTH KOREA"}
         for c in countries:
             country_counter[c] += 1
     top_countries = [{"country": c, "count": n} for c, n in country_counter.most_common(15)]
@@ -3037,6 +3005,1137 @@ def compute_sec11(kisti_records, pure_induced_records,
 
 
 # ═══════════════════════════════════════════════════════════
+# 💡 정책 인사이트 모듈 (52개 정형 분석과 구분되는 심화 분석)
+# ═══════════════════════════════════════════════════════════
+
+def _compute_strong_uts(pure_induced_records):
+    """유발논문 중 '강한 연결'(구체 인프라 명시) UT 집합 반환.
+
+    🟢 Strong: KSC/NURION/GSDC/KREONET/EDISON/PLSI/KIAF 사사표기에 명시
+    🟡 Indirect: 그 외 ('KISTI' 단어만, 주로 Clarivate의 NTIS DB 자동 태깅)
+    """
+    strong_uts = set()
+    for r in pure_induced_records:
+        meta = r.get("_induced_meta", {}) or {}
+        fu = r.get("FU") or meta.get("FU") or ""
+        fx = r.get("FX") or meta.get("FX") or ""
+        kind, _ = _classify_infra_strength(fu, fx)
+        if kind == "strong":
+            ut = r.get("UT")
+            if ut:
+                strong_uts.add(ut)
+    return strong_uts
+
+
+def compute_insights(kisti_records, pure_induced_records,
+                      kr_by_year, kr_top10p_by_year,
+                      jcr_data, wos_by_ut, config: RunConfig):
+    """정책 인사이트 분석 — 추가 메뉴 그룹에서 제공.
+
+    I-1. 국가 기여도 추이 (Option A)
+    이중 지표: all (전체 KISTI 연결) vs strong (직접 인프라 기여)
+    """
+    result = {}
+    years = list(range(config.start_year, config.end_year + 1))
+
+    # 🟢 강한 연결 UT 집합 (이중 지표용)
+    strong_uts = _compute_strong_uts(pure_induced_records)
+
+    def _is_q1(r):
+        """논문의 JCR 분위가 Q1인지. jcr_data 구조: year → {by_issn, by_eissn}"""
+        y = r.get("PY", 0)
+        if y not in jcr_data:
+            return False
+        yr_jcr = jcr_data[y]
+        sn = (r.get("SN") or "").strip()
+        ei = (r.get("EI") or "").strip()
+        entry = None
+        if sn and sn in yr_jcr.get("by_issn", {}):
+            entry = yr_jcr["by_issn"][sn]
+        elif ei and ei in yr_jcr.get("by_eissn", {}):
+            entry = yr_jcr["by_eissn"][ei]
+        return bool(entry) and entry.get("quartile") == "Q1"
+
+    # ── KISTI 유발/직접 논문을 연도·피인용·분위별로 인덱싱 ────
+    induced_by_year = Counter()
+    induced_top10p_by_year = Counter()
+    induced_q1_by_year = Counter()
+
+    for r in pure_induced_records:
+        y = r.get("PY")
+        if y not in years:
+            continue
+        induced_by_year[y] += 1
+        # 상위 10% 여부
+        tc = r.get("TC", 0) or 0
+        thr = kr_top10p_by_year.get(y)
+        if thr is not None and tc >= thr:
+            induced_top10p_by_year[y] += 1
+        # Q1 여부
+        if _is_q1(r):
+            induced_q1_by_year[y] += 1
+
+    kisti_direct_by_year = Counter()
+    for r in kisti_records:
+        y = r.get("PY")
+        if y in years:
+            kisti_direct_by_year[y] += 1
+
+    # ── 한국 전체 상위 10% / Q1 논문 수 (연도별) ───────────
+    kr_top10p_count_by_year = Counter()
+    kr_q1_count_by_year = Counter()
+    for r in wos_by_ut.values():
+        y = r.get("PY")
+        if y not in years:
+            continue
+        tc = r.get("TC", 0) or 0
+        thr = kr_top10p_by_year.get(y)
+        if thr is not None and tc >= thr:
+            kr_top10p_count_by_year[y] += 1
+        if _is_q1(r):
+            kr_q1_count_by_year[y] += 1
+
+    # ── 연도별 데이터 시리즈 ──────────────────────────────
+    series = []
+    for y in years:
+        kr_total = kr_by_year.get(y, 0)
+        ind = induced_by_year.get(y, 0)
+        direct = kisti_direct_by_year.get(y, 0)
+        combined = ind + direct
+        kr_top10p = kr_top10p_count_by_year.get(y, 0)
+        ind_top10p = induced_top10p_by_year.get(y, 0)
+        kr_q1 = kr_q1_count_by_year.get(y, 0)
+        ind_q1 = induced_q1_by_year.get(y, 0)
+
+        series.append({
+            "year": y,
+            "kr_total": kr_total,
+            "kisti_direct": direct,
+            "kisti_induced": ind,
+            "kisti_combined": combined,
+            "ratio_induced": round(ind / kr_total * 100, 3) if kr_total else 0,
+            "ratio_direct": round(direct / kr_total * 100, 3) if kr_total else 0,
+            "ratio_combined": round(combined / kr_total * 100, 3) if kr_total else 0,
+            "kr_top10p": kr_top10p,
+            "kisti_induced_top10p": ind_top10p,
+            "ratio_top10p": round(ind_top10p / kr_top10p * 100, 3) if kr_top10p else 0,
+            "kr_q1": kr_q1,
+            "kisti_induced_q1": ind_q1,
+            "ratio_q1": round(ind_q1 / kr_q1 * 100, 3) if kr_q1 else 0,
+        })
+
+    # ── 누적 통계 ─────────────────────────────────────────
+    sum_kr = sum(s["kr_total"] for s in series)
+    sum_induced = sum(s["kisti_induced"] for s in series)
+    sum_direct = sum(s["kisti_direct"] for s in series)
+    sum_top10p_kr = sum(s["kr_top10p"] for s in series)
+    sum_top10p_ind = sum(s["kisti_induced_top10p"] for s in series)
+    sum_q1_kr = sum(s["kr_q1"] for s in series)
+    sum_q1_ind = sum(s["kisti_induced_q1"] for s in series)
+
+    cumulative = {
+        "period": config.period_str,
+        "kr_total": sum_kr,
+        "kisti_induced": sum_induced,
+        "kisti_direct": sum_direct,
+        "kisti_combined": sum_induced + sum_direct,
+        "ratio_induced": round(sum_induced / sum_kr * 100, 3) if sum_kr else 0,
+        "ratio_direct": round(sum_direct / sum_kr * 100, 3) if sum_kr else 0,
+        "ratio_combined": round((sum_induced + sum_direct) / sum_kr * 100, 3) if sum_kr else 0,
+        "ratio_top10p": round(sum_top10p_ind / sum_top10p_kr * 100, 3) if sum_top10p_kr else 0,
+        "ratio_q1": round(sum_q1_ind / sum_q1_kr * 100, 3) if sum_q1_kr else 0,
+        "kr_top10p": sum_top10p_kr,
+        "kisti_induced_top10p": sum_top10p_ind,
+        "kr_q1": sum_q1_kr,
+        "kisti_induced_q1": sum_q1_ind,
+    }
+
+    # ── 최근 5년 vs 과거 5년 트렌드 ──────────────────────
+    # 최근 5년과 과거 5년 평균 비중 비교 (질적 기여 증가 여부)
+    def _avg_ratio(yrs, key):
+        sub = [s for s in series if s["year"] in yrs]
+        if not sub:
+            return 0
+        vals = [s[key] for s in sub if s["kr_total"] > 0]
+        return round(sum(vals) / len(vals), 3) if vals else 0
+
+    recent_yrs = set(years[-5:]) if len(years) >= 5 else set(years)
+    past_yrs = set(years[:5]) if len(years) >= 10 else set()
+
+    trend = {
+        "recent_period": f"{min(recent_yrs)}-{max(recent_yrs)}" if recent_yrs else "",
+        "past_period": f"{min(past_yrs)}-{max(past_yrs)}" if past_yrs else "",
+        "recent_induced": _avg_ratio(recent_yrs, "ratio_induced"),
+        "past_induced": _avg_ratio(past_yrs, "ratio_induced") if past_yrs else None,
+        "recent_top10p": _avg_ratio(recent_yrs, "ratio_top10p"),
+        "past_top10p": _avg_ratio(past_yrs, "ratio_top10p") if past_yrs else None,
+        "recent_q1": _avg_ratio(recent_yrs, "ratio_q1"),
+        "past_q1": _avg_ratio(past_yrs, "ratio_q1") if past_yrs else None,
+    }
+
+    # ── 질적 기여 핵심 메시지 (상위 10% / Q1 비중이 전체보다 높은가) ──
+    key_insight = {
+        "overall_ratio": cumulative["ratio_induced"],
+        "top10p_ratio": cumulative["ratio_top10p"],
+        "top10p_multiplier": (
+            round(cumulative["ratio_top10p"] / cumulative["ratio_induced"], 2)
+            if cumulative["ratio_induced"] > 0 else 0
+        ),
+        "q1_ratio": cumulative["ratio_q1"],
+        "q1_multiplier": (
+            round(cumulative["ratio_q1"] / cumulative["ratio_induced"], 2)
+            if cumulative["ratio_induced"] > 0 else 0
+        ),
+    }
+
+    # ══════════════════════════════════════════════════
+    # 🟢 STRONG-ONLY 버전 (직접 인프라 기여만)
+    # ══════════════════════════════════════════════════
+    strong_induced_by_year = Counter()
+    strong_induced_top10p_by_year = Counter()
+    strong_induced_q1_by_year = Counter()
+    for r in pure_induced_records:
+        ut = r.get("UT")
+        if ut not in strong_uts:
+            continue
+        y = r.get("PY")
+        if y not in years:
+            continue
+        strong_induced_by_year[y] += 1
+        tc = r.get("TC", 0) or 0
+        thr = kr_top10p_by_year.get(y)
+        if thr is not None and tc >= thr:
+            strong_induced_top10p_by_year[y] += 1
+        if _is_q1(r):
+            strong_induced_q1_by_year[y] += 1
+
+    series_strong = []
+    for y in years:
+        kr_total = kr_by_year.get(y, 0)
+        ind = strong_induced_by_year.get(y, 0)
+        kr_top10p = kr_top10p_count_by_year.get(y, 0)
+        ind_top10p = strong_induced_top10p_by_year.get(y, 0)
+        kr_q1 = kr_q1_count_by_year.get(y, 0)
+        ind_q1 = strong_induced_q1_by_year.get(y, 0)
+        series_strong.append({
+            "year": y,
+            "kr_total": kr_total,
+            "kisti_induced": ind,
+            "ratio_induced": round(ind / kr_total * 100, 3) if kr_total else 0,
+            "kr_top10p": kr_top10p,
+            "kisti_induced_top10p": ind_top10p,
+            "ratio_top10p": round(ind_top10p / kr_top10p * 100, 3) if kr_top10p else 0,
+            "kr_q1": kr_q1,
+            "kisti_induced_q1": ind_q1,
+            "ratio_q1": round(ind_q1 / kr_q1 * 100, 3) if kr_q1 else 0,
+        })
+
+    sum_induced_s = sum(s["kisti_induced"] for s in series_strong)
+    sum_top10p_ind_s = sum(s["kisti_induced_top10p"] for s in series_strong)
+    sum_q1_ind_s = sum(s["kisti_induced_q1"] for s in series_strong)
+
+    cumulative_strong = {
+        "period": config.period_str,
+        "kr_total": sum_kr,
+        "kisti_induced": sum_induced_s,
+        "ratio_induced": round(sum_induced_s / sum_kr * 100, 3) if sum_kr else 0,
+        "ratio_top10p": round(sum_top10p_ind_s / sum_top10p_kr * 100, 3) if sum_top10p_kr else 0,
+        "ratio_q1": round(sum_q1_ind_s / sum_q1_kr * 100, 3) if sum_q1_kr else 0,
+        "kisti_induced_top10p": sum_top10p_ind_s,
+        "kisti_induced_q1": sum_q1_ind_s,
+    }
+
+    key_insight_strong = {
+        "overall_ratio": cumulative_strong["ratio_induced"],
+        "top10p_ratio": cumulative_strong["ratio_top10p"],
+        "top10p_multiplier": round(cumulative_strong["ratio_top10p"] / cumulative_strong["ratio_induced"], 2)
+            if cumulative_strong["ratio_induced"] > 0 else 0,
+        "q1_ratio": cumulative_strong["ratio_q1"],
+        "q1_multiplier": round(cumulative_strong["ratio_q1"] / cumulative_strong["ratio_induced"], 2)
+            if cumulative_strong["ratio_induced"] > 0 else 0,
+    }
+
+    result["ins_contribution"] = {
+        "series": series,
+        "cumulative": cumulative,
+        "trend": trend,
+        "key_insight": key_insight,
+        # 🟢 이중 지표 — 직접 인프라 기여만
+        "series_strong": series_strong,
+        "cumulative_strong": cumulative_strong,
+        "key_insight_strong": key_insight_strong,
+        "strong_uts_count": len(strong_uts),
+    }
+
+    print(f"  I-1 국가기여도 [ALL]:    전체 {cumulative['ratio_induced']}% / "
+          f"상위10% {cumulative['ratio_top10p']}% / Q1 {cumulative['ratio_q1']}%")
+    print(f"  I-1 국가기여도 [STRONG]: 전체 {cumulative_strong['ratio_induced']}% / "
+          f"상위10% {cumulative_strong['ratio_top10p']}% / Q1 {cumulative_strong['ratio_q1']}% ({len(strong_uts)}편)")
+
+    return result
+
+
+# 프리스티지 저널 목록 (소문자 비교)
+_PRESTIGE_JOURNALS = {
+    "NATURE", "SCIENCE", "CELL",
+    "NATURE COMMUNICATIONS",
+    "PROCEEDINGS OF THE NATIONAL ACADEMY OF SCIENCES OF THE UNITED STATES OF AMERICA",  # PNAS
+    "LANCET", "NEW ENGLAND JOURNAL OF MEDICINE", "JAMA",
+    "NATURE MATERIALS", "NATURE PHYSICS", "NATURE CHEMISTRY",
+    "NATURE NANOTECHNOLOGY", "NATURE METHODS", "NATURE BIOTECHNOLOGY",
+    "NATURE MEDICINE", "NATURE GENETICS", "NATURE NEUROSCIENCE",
+    "NATURE PHOTONICS", "NATURE ENERGY", "NATURE CATALYSIS",
+    "SCIENCE ADVANCES", "CELL REPORTS",
+}
+
+
+def _is_prestige_journal(so):
+    if not so:
+        return False
+    return so.strip().upper() in _PRESTIGE_JOURNALS
+
+
+def _classify_infra_strength(fu, fx):
+    """FU/FX 텍스트로 KISTI 인프라 연결 강도 분류.
+
+    🟢 strong: KSC/NURION/KREONET/EDISON/PLSI/KIAF/GSDC 등 구체 인프라 명시
+    🟡 medium: KISTI 이름만 있고 구체 인프라 없음 (NTIS 펀딩 카탈로그 매핑 등)
+    """
+    text = (fu or "") + " " + (fx or "")
+    upper = text.upper()
+    strong_keywords = {
+        "KSC-": "KSC",         # 슈퍼컴 프로젝트 (KSC-2019-CRE-... 등)
+        "NURION": "NURION",    # 누리온 슈퍼컴
+        "GSDC": "GSDC",        # 글로벌 과학 데이터 허브
+        "KREONET": "KREONET",  # 연구망
+        "EDISON": "EDISON",    # e-Science 플랫폼
+        "PLSI": "PLSI",        # 국가초고성능컴퓨팅센터
+        "KIAF": "KIAF",        # 이전 슈퍼컴
+    }
+    for key, label in strong_keywords.items():
+        if key in upper:
+            return "strong", label
+    return "medium", "NTIS"
+
+
+def compute_insights_hcp(pure_induced_records, pure_induced_uts, wos_by_ut,
+                          jcr_data, hcp_index, config: RunConfig):
+    """I-2. HCP(Clarivate 공식) + Nature/Science급 프리스티지 저널 기여 분석."""
+    result = {}
+    if not hcp_index:
+        print("  I-2 HCP: HCP 인덱스 없음 — 건너뜀")
+        return result
+
+    hcp_papers = hcp_index.get("papers", {})  # UT → {year, field, ...}
+    kisti_induced_uts = set(pure_induced_uts)
+    induced_by_ut = {r.get("UT"): r for r in pure_induced_records if r.get("UT")}
+
+    # ── HCP 중 KISTI 유발 교차 ────────────────────────────
+    hcp_uts = set(hcp_papers.keys())
+    kisti_hcp_uts = hcp_uts & kisti_induced_uts
+
+    # 연도별
+    hcp_by_year = Counter()
+    kisti_hcp_by_year = Counter()
+    for ut, p in hcp_papers.items():
+        y = p.get("year")
+        if not y:
+            continue
+        hcp_by_year[y] += 1
+        if ut in kisti_induced_uts:
+            kisti_hcp_by_year[y] += 1
+
+    # 분야별 (Clarivate ESI 22분야 — HCP export의 Research Field 기준)
+    hcp_by_field = Counter()
+    kisti_hcp_by_field = Counter()
+    for ut, p in hcp_papers.items():
+        f = p.get("field") or "UNKNOWN"
+        hcp_by_field[f] += 1
+        if ut in kisti_induced_uts:
+            kisti_hcp_by_field[f] += 1
+
+    # 전체 기간 통계
+    hcp_years = sorted(hcp_by_year.keys())
+    total_kr_hcp = sum(hcp_by_year.values())
+    total_kisti_hcp = sum(kisti_hcp_by_year.values())
+    ratio = round(total_kisti_hcp / total_kr_hcp * 100, 3) if total_kr_hcp else 0
+
+    # ── 연도별 시리즈 ────────────────────────────────────
+    years = list(range(config.start_year, config.end_year + 1))
+    series = []
+    for y in years:
+        kr_hcp = hcp_by_year.get(y, 0)
+        kisti_hcp = kisti_hcp_by_year.get(y, 0)
+        series.append({
+            "year": y,
+            "kr_hcp": kr_hcp,
+            "kisti_induced_hcp": kisti_hcp,
+            "ratio": round(kisti_hcp / kr_hcp * 100, 3) if kr_hcp else 0,
+        })
+
+    # ── 분야별 테이블 ─────────────────────────────────────
+    field_data = []
+    for f, n in hcp_by_field.most_common():
+        kh = kisti_hcp_by_field.get(f, 0)
+        field_data.append({
+            "field": f,
+            "kr_hcp": n,
+            "kisti_induced_hcp": kh,
+            "ratio": round(kh / n * 100, 3) if n else 0,
+        })
+
+    # ── 프리스티지 저널 기여 ──────────────────────────────
+    # 한국 전체 프리스티지 논문 수
+    # Strong-only 계산 위해 strong UT 집합 생성
+    strong_uts_ih = set()
+    for r in pure_induced_records:
+        meta = r.get("_induced_meta", {}) or {}
+        fu = r.get("FU") or meta.get("FU") or ""
+        fx = r.get("FX") or meta.get("FX") or ""
+        kind, _ = _classify_infra_strength(fu, fx)
+        if kind == "strong" and r.get("UT"):
+            strong_uts_ih.add(r.get("UT"))
+
+    kr_prestige_by_year = Counter()
+    kisti_prestige_by_year = Counter()
+    kisti_prestige_strong_by_year = Counter()
+    for ut, r in wos_by_ut.items():
+        if not _is_prestige_journal(r.get("SO", "")):
+            continue
+        y = r.get("PY")
+        if y not in years:
+            continue
+        kr_prestige_by_year[y] += 1
+        if ut in kisti_induced_uts:
+            kisti_prestige_by_year[y] += 1
+            if ut in strong_uts_ih:
+                kisti_prestige_strong_by_year[y] += 1
+
+    prestige_series = []
+    for y in years:
+        kr_p = kr_prestige_by_year.get(y, 0)
+        kisti_p = kisti_prestige_by_year.get(y, 0)
+        prestige_series.append({
+            "year": y,
+            "kr_prestige": kr_p,
+            "kisti_induced_prestige": kisti_p,
+            "ratio": round(kisti_p / kr_p * 100, 3) if kr_p else 0,
+        })
+
+    total_kr_prestige = sum(kr_prestige_by_year.values())
+    total_kisti_prestige = sum(kisti_prestige_by_year.values())
+    total_kisti_prestige_strong = sum(kisti_prestige_strong_by_year.values())
+    prestige_ratio = round(total_kisti_prestige / total_kr_prestige * 100, 3) if total_kr_prestige else 0
+    prestige_ratio_strong = round(total_kisti_prestige_strong / total_kr_prestige * 100, 3) if total_kr_prestige else 0
+
+    # ── 인프라 연결 강도 분류 (HCP 228편) ───────────────
+    # pure_induced_records의 FU/FX는 원본 wos_by_ut에서 가져오거나
+    # _induced_meta(유발논문 JSON 원본)에서 가져온다
+    strength_counter = Counter()
+    strength_detail_counter = Counter()
+    by_ut_strength = {}
+    for ut in kisti_hcp_uts:
+        ind = induced_by_ut.get(ut, {})
+        meta = ind.get("_induced_meta", {}) or {}
+        fu = ind.get("FU") or meta.get("FU") or ""
+        fx = ind.get("FX") or meta.get("FX") or ""
+        kind, label = _classify_infra_strength(fu, fx)
+        strength_counter[kind] += 1
+        strength_detail_counter[label] += 1
+        by_ut_strength[ut] = {"kind": kind, "label": label}
+
+    # ── 대표 논문 (KISTI 유발 HCP) ────────────────────────
+    # 큐레이션된 해설을 붙일 수 있는 스타 논문 사전
+    curated_notes = {
+        "WOS:000686117000001": {
+            "short": "AlphaFold — 2024 노벨 화학상",
+            "why_matters": (
+                "DeepMind가 개발한 AI 단백질 구조 예측 시스템. 50년 생물학 난제였던 단백질 접힘 문제를 해결, "
+                "2억개 단백질 구조를 공개 데이터베이스로 제공해 전 세계 생명과학 연구 패러다임을 바꿨다. "
+                "이 업적으로 2024년 노벨 화학상 수상(Hassabis, Jumper). 한국 측은 서울대 생명과학부 + AI연구소 참여."
+            ),
+            "kisti_role": (
+                "FU(Funding Source)에 KISTI/NTIS 펀딩 카탈로그 매핑만 기재. "
+                "KISTI 슈퍼컴 직접 사용은 명시되지 않음 (연결 강도: 🟡 보통)."
+            ),
+        },
+        "WOS:001179437200001": {
+            "short": "LIGO/Virgo GWTC-3 중력파 카탈로그",
+            "why_matters": (
+                "LIGO·Virgo 국제 협력체가 관측한 블랙홀/중성자별 충돌 90건 통합 카탈로그. "
+                "아인슈타인 일반상대성이론 검증과 천체물리의 새 장을 연 대형 국제 프로젝트."
+            ),
+            "kisti_role": (
+                "사사표기에 KISTI-GSDC(Global Science Data Center)가 computing infrastructure 파트너로 명시. "
+                "LIGO 데이터 처리에 **KISTI 인프라가 실제 활용**됨 (연결 강도: 🟢 강함)."
+            ),
+        },
+        "WOS:000574653300032": {
+            "short": "24.8% 효율 Perovskite 태양전지",
+            "why_matters": (
+                "페로브스카이트 태양전지의 효율 기록을 24.8% 초과로 끌어올린 Science지 대표 논문. "
+                "차세대 태양광 상용화의 핵심 돌파구. 한국에너지연(KIER) + UNIST 연구."
+            ),
+            "kisti_role": (
+                "사사표기에 **KISTI-HPC 프로젝트(KSC-2019-CRE-0056)** 명시. "
+                "KISTI 슈퍼컴이 계산 자원으로 직접 사용됨 (연결 강도: 🟢 강함)."
+            ),
+        },
+        "WOS:000533623900016": {
+            "short": "SARS-CoV-2 전사체 지도 (코로나)",
+            "why_matters": (
+                "COVID-19 바이러스의 RNA 전사체 구조를 세계 최초로 완전 해독. "
+                "IBS RNA연구단 + 서울대 연구로, 바이러스 치료제/백신 개발의 기반이 됨."
+            ),
+            "kisti_role": (
+                "FU에 KISTI/NTIS 펀딩 카탈로그 매핑 (연결 강도: 🟡 보통)."
+            ),
+        },
+        "WOS:000559265400002": {
+            "short": "식물-미생물 상호작용",
+            "why_matters": (
+                "Nature Reviews Microbiology 커버 리뷰. 식물 뿌리 주변 미생물 군집이 "
+                "식물 건강·면역에 미치는 영향을 체계적으로 정리한 분야 정의 논문."
+            ),
+            "kisti_role": (
+                "FU에 KISTI/NTIS 펀딩 카탈로그 매핑 (연결 강도: 🟡 보통)."
+            ),
+        },
+    }
+
+    # 피인용 순 상위 20편 + 강도 + 해설
+    notable = []
+    for ut in kisti_hcp_uts:
+        p = hcp_papers.get(ut, {})
+        strength_info = by_ut_strength.get(ut, {"kind": "medium", "label": "NTIS"})
+        notable.append({
+            "ut": ut,
+            "title": p.get("title", ""),
+            "tc": p.get("tc", 0),
+            "year": p.get("year"),
+            "source": p.get("source", ""),
+            "field": p.get("field", ""),
+            "doi": p.get("doi", ""),
+            "strength": strength_info["kind"],       # "strong" | "medium"
+            "strength_label": strength_info["label"], # "KSC", "GSDC", "NTIS" 등
+            "note": curated_notes.get(ut, {}),
+        })
+    notable.sort(key=lambda x: -(x.get("tc") or 0))
+    notable = notable[:20]
+
+    result["ins_hcp"] = {
+        "period_covered": f"{min(hcp_years) if hcp_years else 'N/A'}-{max(hcp_years) if hcp_years else 'N/A'}",
+        "summary": {
+            "kr_hcp_total": total_kr_hcp,
+            "kisti_induced_hcp": total_kisti_hcp,
+            "ratio_hcp": ratio,
+            "kr_prestige_total": total_kr_prestige,
+            "kisti_induced_prestige": total_kisti_prestige,
+            "kisti_induced_prestige_strong": total_kisti_prestige_strong,
+            "ratio_prestige": prestige_ratio,
+            "ratio_prestige_strong": prestige_ratio_strong,
+        },
+        "strength": {
+            "strong": strength_counter.get("strong", 0),
+            "medium": strength_counter.get("medium", 0),
+            "detail": dict(strength_detail_counter),
+        },
+        "series": series,
+        "prestige_series": prestige_series,
+        "by_field": field_data,
+        "notable": notable,
+    }
+
+    print(f"  I-2 HCP: 한국 HCP {total_kr_hcp}편 중 KISTI 유발 {total_kisti_hcp}편 ({ratio}%)")
+    print(f"  I-2 강도: 강한 연결 {strength_counter.get('strong',0)}편 / 보통 연결 {strength_counter.get('medium',0)}편")
+    print(f"  I-2 프리스티지: 한국 {total_kr_prestige}편 중 KISTI 유발 {total_kisti_prestige}편 ({prestige_ratio}%)")
+
+    return result
+
+
+# HCP의 대문자 분야명 → std_field(Title Case) 정규화
+# std_field는 '&' 유지, ESI 슬래시 분야는 '&' 없이 공백으로 (Environment Ecology, Psychiatry Psychology)
+_FIELD_NORMALIZE = {
+    "CLINICAL MEDICINE": "Clinical Medicine",
+    "ENGINEERING": "Engineering",
+    "CHEMISTRY": "Chemistry",
+    "MATERIALS SCIENCE": "Materials Science",
+    "PHYSICS": "Physics",
+    "BIOLOGY & BIOCHEMISTRY": "Biology & Biochemistry",
+    "COMPUTER SCIENCE": "Computer Science",
+    "MOLECULAR BIOLOGY & GENETICS": "Molecular Biology & Genetics",
+    "ENVIRONMENT/ECOLOGY": "Environment Ecology",
+    "AGRICULTURAL SCIENCES": "Agricultural Sciences",
+    "PHARMACOLOGY & TOXICOLOGY": "Pharmacology & Toxicology",
+    "NEUROSCIENCE & BEHAVIOR": "Neuroscience & Behavior",
+    "PSYCHIATRY/PSYCHOLOGY": "Psychiatry Psychology",
+    "PLANT & ANIMAL SCIENCE": "Plant & Animal Science",
+    "GEOSCIENCES": "Geosciences",
+    "IMMUNOLOGY": "Immunology",
+    "MICROBIOLOGY": "Microbiology",
+    "MATHEMATICS": "Mathematics",
+    "MULTIDISCIPLINARY": "Multidisciplinary",
+    "SPACE SCIENCE": "Space Science",
+    "ECONOMICS & BUSINESS": "Economics & Business",
+    "SOCIAL SCIENCES, GENERAL": "Social Sciences, General",
+}
+
+
+def _norm_field(name):
+    if not name:
+        return ""
+    n = name.strip()
+    u = n.upper()
+    if u in _FIELD_NORMALIZE:
+        return _FIELD_NORMALIZE[u]
+    return n  # 이미 Title Case면 그대로
+
+
+def compute_insights_fields(pure_induced_records, wos_by_ut, hcp_index, config: RunConfig):
+    """I-3. 분야별 KISTI 의존도 히트맵·랭킹.
+
+    이중 지표: all (전체 KISTI 연결) vs strong (직접 인프라 기여)
+    """
+    result = {}
+    years = list(range(config.start_year, config.end_year + 1))
+    strong_uts = _compute_strong_uts(pure_induced_records)
+
+    # 한국 전체 분야×연도
+    kr_yf = defaultdict(lambda: defaultdict(int))
+    for r in wos_by_ut.values():
+        y = r.get("PY")
+        f = r.get("std_field")
+        if y in years and f:
+            kr_yf[y][f] += 1
+
+    # KISTI 유발 분야×연도 (전체 + strong-only)
+    kis_yf = defaultdict(lambda: defaultdict(int))
+    kis_yf_strong = defaultdict(lambda: defaultdict(int))
+    for r in pure_induced_records:
+        y = r.get("PY")
+        f = r.get("std_field")
+        if y in years and f:
+            kis_yf[y][f] += 1
+            if r.get("UT") in strong_uts:
+                kis_yf_strong[y][f] += 1
+
+    # 모든 분야 목록 (한국 전체 기준, 논문수 많은 순)
+    field_totals = defaultdict(int)
+    for y in years:
+        for f, n in kr_yf.get(y, {}).items():
+            field_totals[f] += n
+    fields = [f for f, _ in sorted(field_totals.items(), key=lambda x: -x[1])]
+
+    # 히트맵 데이터 (fields × years 매트릭스)
+    heatmap = {
+        "fields": fields,
+        "years": years,
+        "kr": [[kr_yf.get(y, {}).get(f, 0) for y in years] for f in fields],
+        "kisti": [[kis_yf.get(y, {}).get(f, 0) for y in years] for f in fields],
+        "ratio": [
+            [
+                (kis_yf.get(y, {}).get(f, 0) / kr_yf.get(y, {}).get(f, 0) * 100)
+                if kr_yf.get(y, {}).get(f, 0) else 0
+                for y in years
+            ]
+            for f in fields
+        ],
+    }
+
+    # 분야별 누적 + 의존도 스코어
+    total_kr = sum(field_totals.values())
+    total_kis = sum(n for yd in kis_yf.values() for n in yd.values())
+    global_avg = total_kis / total_kr * 100 if total_kr else 0
+
+    # HCP 분야별 (Clarivate 분야 → ESI 분야 정규화)
+    hcp_by_field_norm = {}
+    if hcp_index:
+        for ut, p in hcp_index.get("papers", {}).items():
+            f_hcp = _norm_field(p.get("field", ""))
+            if f_hcp:
+                hcp_by_field_norm.setdefault(f_hcp, {"kr": 0, "kis": 0})
+                hcp_by_field_norm[f_hcp]["kr"] += 1
+    # KISTI 유발 HCP 분야별
+    kisti_induced_uts = {r.get("UT") for r in pure_induced_records if r.get("UT")}
+    if hcp_index:
+        for ut, p in hcp_index.get("papers", {}).items():
+            if ut in kisti_induced_uts:
+                f_hcp = _norm_field(p.get("field", ""))
+                if f_hcp and f_hcp in hcp_by_field_norm:
+                    hcp_by_field_norm[f_hcp]["kis"] += 1
+
+    total_kr_hcp = sum(v["kr"] for v in hcp_by_field_norm.values())
+    total_kis_hcp = sum(v["kis"] for v in hcp_by_field_norm.values())
+    global_hcp_avg = total_kis_hcp / total_kr_hcp * 100 if total_kr_hcp else 0
+
+    # 🟢 Strong HCP 분야별
+    hcp_strong_by_field = {}
+    if hcp_index:
+        for ut, p in hcp_index.get("papers", {}).items():
+            if ut in strong_uts:
+                f_hcp = _norm_field(p.get("field", ""))
+                if f_hcp:
+                    hcp_strong_by_field[f_hcp] = hcp_strong_by_field.get(f_hcp, 0) + 1
+    total_kis_hcp_strong = sum(hcp_strong_by_field.values())
+    global_hcp_strong_avg = total_kis_hcp_strong / total_kr_hcp * 100 if total_kr_hcp else 0
+
+    # 분야별 랭킹 테이블
+    ranking = []
+    for f in fields:
+        kr_n = field_totals[f]
+        kis_n = sum(kis_yf.get(y, {}).get(f, 0) for y in years)
+        kis_n_strong = sum(kis_yf_strong.get(y, {}).get(f, 0) for y in years)
+        overall_ratio = kis_n / kr_n * 100 if kr_n else 0
+        overall_mult = overall_ratio / global_avg if global_avg > 0 else 0
+        overall_ratio_strong = kis_n_strong / kr_n * 100 if kr_n else 0
+
+        hcp_info = hcp_by_field_norm.get(f, {"kr": 0, "kis": 0})
+        kr_hcp = hcp_info["kr"]
+        kis_hcp = hcp_info["kis"]
+        kis_hcp_strong = hcp_strong_by_field.get(f, 0)
+        hcp_ratio = kis_hcp / kr_hcp * 100 if kr_hcp else 0
+        hcp_mult = hcp_ratio / global_hcp_avg if global_hcp_avg > 0 else 0
+        hcp_ratio_strong = kis_hcp_strong / kr_hcp * 100 if kr_hcp else 0
+
+        strategic_score = min(overall_mult, hcp_mult) if (overall_mult > 0 and hcp_mult > 0) else max(overall_mult, hcp_mult)
+
+        ranking.append({
+            "field": f,
+            "kr_total": kr_n,
+            "kisti_induced": kis_n,
+            "kisti_induced_strong": kis_n_strong,
+            "overall_ratio": round(overall_ratio, 3),
+            "overall_ratio_strong": round(overall_ratio_strong, 3),
+            "overall_mult": round(overall_mult, 2),
+            "kr_hcp": kr_hcp,
+            "kisti_induced_hcp": kis_hcp,
+            "kisti_induced_hcp_strong": kis_hcp_strong,
+            "hcp_ratio": round(hcp_ratio, 3),
+            "hcp_ratio_strong": round(hcp_ratio_strong, 3),
+            "hcp_mult": round(hcp_mult, 2),
+            "strategic_score": round(strategic_score, 2),
+        })
+
+    ranking.sort(key=lambda x: -x["strategic_score"])
+
+    # 전략 분야 Top 5
+    strategic = ranking[:5]
+
+    # 전체 strong 평균
+    total_kis_strong = sum(n for yd in kis_yf_strong.values() for n in yd.values())
+    global_strong_avg = total_kis_strong / total_kr * 100 if total_kr else 0
+
+    result["ins_fields"] = {
+        "global_avg": round(global_avg, 3),
+        "global_avg_strong": round(global_strong_avg, 3),
+        "global_hcp_avg": round(global_hcp_avg, 3),
+        "global_hcp_strong_avg": round(global_hcp_strong_avg, 3),
+        "total_strong_induced": total_kis_strong,
+        "heatmap": heatmap,
+        "ranking": ranking,
+        "strategic_top5": strategic,
+    }
+
+    print(f"  I-3 분야의존도: 전체 평균 {global_avg:.3f}% / HCP 평균 {global_hcp_avg:.3f}%")
+    print(f"     전략 분야 Top 3:")
+    for r in strategic[:3]:
+        print(f"       {r['field']}: 전체 {r['overall_ratio']}% (×{r['overall_mult']}) / HCP {r['hcp_ratio']}% (×{r['hcp_mult']})")
+
+    return result
+
+
+def compute_insights_intl(pure_induced_records, jcr_data,
+                           kr_avg_tc_by_year_field, hcp_index, config: RunConfig):
+    """I-4. 협력 유형별 질적 비교 — 국제 협력의 "질적 프리미엄" 측정.
+
+    이중 지표: all(전체 KISTI 연결) vs strong(직접 인프라 기여)
+    4가지 협력 유형별로 논문 수·평균 피인용·MNCS·HCP 비중·Q1 비율을 비교.
+    """
+    result = {}
+    years = list(range(config.start_year, config.end_year + 1))
+    hcp_uts = set((hcp_index or {}).get("papers", {}).keys())
+    strong_uts = _compute_strong_uts(pure_induced_records)
+
+    # Q1 판별 함수 (인라인)
+    def is_q1(r):
+        y = r.get("PY", 0)
+        if y not in jcr_data:
+            return False
+        yr = jcr_data[y]
+        sn = (r.get("SN") or "").strip()
+        ei = (r.get("EI") or "").strip()
+        entry = None
+        if sn and sn in yr.get("by_issn", {}):
+            entry = yr["by_issn"][sn]
+        elif ei and ei in yr.get("by_eissn", {}):
+            entry = yr["by_eissn"][ei]
+        return bool(entry) and entry.get("quartile") == "Q1"
+
+    # MNCS 계산용 헬퍼
+    def mncs(records):
+        vals = []
+        for r in records:
+            py = r.get("PY")
+            fld = r.get("std_field")
+            if not py or not fld:
+                continue
+            denom = kr_avg_tc_by_year_field.get(py, {}).get(fld)
+            if not denom:
+                continue
+            vals.append((r.get("TC", 0) or 0) / denom)
+        return round(sum(vals) / len(vals), 3) if vals else 0
+
+    # 협력 유형별 집계
+    types = ["단독", "국내", "국외", "국내외"]
+    groups = {t: [] for t in types}
+    for r in pure_induced_records:
+        ct = r.get("collab_type", "미분류")
+        if ct in groups:
+            groups[ct].append(r)
+
+    # 설명
+    desc = {
+        "단독": "단일 기관(KISTI) 내부만 참여",
+        "국내": "국내 기관들 간 공동연구 (국외 참여 없음)",
+        "국외": "국외 기관과만 공동연구 (국내 타 기관 없음)",
+        "국내외": "국내·국외 기관 모두 참여",
+    }
+
+    type_stats = []
+    for t in types:
+        recs = groups[t]
+        n = len(recs)
+        avg_tc = round(sum(r.get("TC", 0) or 0 for r in recs) / max(n, 1), 2)
+        m = mncs(recs)
+        hcp_n = sum(1 for r in recs if r.get("UT") in hcp_uts)
+        hcp_ratio = round(hcp_n / n * 100, 2) if n else 0
+        q1_n = sum(1 for r in recs if is_q1(r))
+        q1_ratio = round(q1_n / n * 100, 2) if n else 0
+
+        type_stats.append({
+            "type": t,
+            "desc": desc[t],
+            "count": n,
+            "avg_tc": avg_tc,
+            "mncs": m,
+            "hcp_count": hcp_n,
+            "hcp_ratio": hcp_ratio,
+            "q1_count": q1_n,
+            "q1_ratio": q1_ratio,
+        })
+
+    # 국제 협력(국외+국내외) vs 국내 전용(국내+단독) 집계
+    intl_recs = groups["국외"] + groups["국내외"]
+    dom_recs = groups["단독"] + groups["국내"]
+    intl_count = len(intl_recs)
+    dom_count = len(dom_recs)
+    total = intl_count + dom_count
+
+    intl_mncs = mncs(intl_recs)
+    dom_mncs = mncs(dom_recs)
+    intl_avg_tc = round(sum(r.get("TC", 0) or 0 for r in intl_recs) / max(intl_count, 1), 2)
+    dom_avg_tc = round(sum(r.get("TC", 0) or 0 for r in dom_recs) / max(dom_count, 1), 2)
+    intl_hcp = sum(1 for r in intl_recs if r.get("UT") in hcp_uts)
+    dom_hcp = sum(1 for r in dom_recs if r.get("UT") in hcp_uts)
+    intl_hcp_ratio = round(intl_hcp / intl_count * 100, 2) if intl_count else 0
+    dom_hcp_ratio = round(dom_hcp / dom_count * 100, 2) if dom_count else 0
+
+    premium = {
+        "intl_count": intl_count,
+        "dom_count": dom_count,
+        "intl_share": round(intl_count / total * 100, 2) if total else 0,
+        "intl_avg_tc": intl_avg_tc,
+        "dom_avg_tc": dom_avg_tc,
+        "tc_multiplier": round(intl_avg_tc / dom_avg_tc, 2) if dom_avg_tc else 0,
+        "intl_mncs": intl_mncs,
+        "dom_mncs": dom_mncs,
+        "mncs_multiplier": round(intl_mncs / dom_mncs, 2) if dom_mncs else 0,
+        "intl_hcp": intl_hcp,
+        "dom_hcp": dom_hcp,
+        "intl_hcp_ratio": intl_hcp_ratio,
+        "dom_hcp_ratio": dom_hcp_ratio,
+        "hcp_multiplier": round(intl_hcp_ratio / dom_hcp_ratio, 2) if dom_hcp_ratio else 0,
+    }
+
+    # 연도별 국제 협력 비중 추이
+    yearly = []
+    for y in years:
+        y_recs = [r for r in pure_induced_records if r.get("PY") == y]
+        y_total = len(y_recs)
+        y_intl = sum(1 for r in y_recs if r.get("collab_type") in ("국외", "국내외"))
+        y_dom = sum(1 for r in y_recs if r.get("collab_type") in ("단독", "국내"))
+        yearly.append({
+            "year": y,
+            "total": y_total,
+            "intl": y_intl,
+            "dom": y_dom,
+            "intl_share": round(y_intl / y_total * 100, 2) if y_total else 0,
+        })
+
+    # 분야별 국제 협력 비중 (전략 분야에서 국제 협력 비중이 높은가)
+    field_intl = defaultdict(lambda: {"total": 0, "intl": 0})
+    for r in pure_induced_records:
+        fld = r.get("std_field")
+        if not fld:
+            continue
+        field_intl[fld]["total"] += 1
+        if r.get("collab_type") in ("국외", "국내외"):
+            field_intl[fld]["intl"] += 1
+    field_intl_list = []
+    for f, stats in field_intl.items():
+        if stats["total"] < 30:  # 최소 표본
+            continue
+        field_intl_list.append({
+            "field": f,
+            "total": stats["total"],
+            "intl": stats["intl"],
+            "intl_share": round(stats["intl"] / stats["total"] * 100, 2),
+        })
+    field_intl_list.sort(key=lambda x: -x["intl_share"])
+
+    # ═════════════════════════════════════════════
+    # 🟢 STRONG-ONLY 버전
+    # ═════════════════════════════════════════════
+    strong_recs = [r for r in pure_induced_records if r.get("UT") in strong_uts]
+    strong_groups = {t: [r for r in strong_recs if r.get("collab_type", "미분류") == t] for t in types}
+    strong_type_stats = []
+    for t in types:
+        recs_s = strong_groups[t]
+        n_s = len(recs_s)
+        avg_tc_s = round(sum(r.get("TC", 0) or 0 for r in recs_s) / max(n_s, 1), 2)
+        m_s = mncs(recs_s)
+        hcp_n_s = sum(1 for r in recs_s if r.get("UT") in hcp_uts)
+        strong_type_stats.append({
+            "type": t,
+            "count": n_s,
+            "avg_tc": avg_tc_s,
+            "mncs": m_s,
+            "hcp_count": hcp_n_s,
+            "hcp_ratio": round(hcp_n_s / n_s * 100, 2) if n_s else 0,
+        })
+
+    strong_intl = [r for r in strong_recs if r.get("collab_type") in ("국외", "국내외")]
+    strong_dom = [r for r in strong_recs if r.get("collab_type") in ("단독", "국내")]
+    strong_intl_hcp = sum(1 for r in strong_intl if r.get("UT") in hcp_uts)
+    strong_dom_hcp = sum(1 for r in strong_dom if r.get("UT") in hcp_uts)
+    premium_strong = {
+        "intl_count": len(strong_intl),
+        "dom_count": len(strong_dom),
+        "intl_share": round(len(strong_intl) / max(len(strong_recs), 1) * 100, 2),
+        "intl_mncs": mncs(strong_intl),
+        "dom_mncs": mncs(strong_dom),
+        "intl_avg_tc": round(sum(r.get("TC", 0) or 0 for r in strong_intl) / max(len(strong_intl), 1), 2),
+        "dom_avg_tc": round(sum(r.get("TC", 0) or 0 for r in strong_dom) / max(len(strong_dom), 1), 2),
+        "intl_hcp_ratio": round(strong_intl_hcp / max(len(strong_intl), 1) * 100, 2),
+        "dom_hcp_ratio": round(strong_dom_hcp / max(len(strong_dom), 1) * 100, 2),
+        "intl_hcp": strong_intl_hcp,
+        "dom_hcp": strong_dom_hcp,
+    }
+    premium_strong["mncs_multiplier"] = round(premium_strong["intl_mncs"] / premium_strong["dom_mncs"], 2) if premium_strong["dom_mncs"] else 0
+    premium_strong["hcp_multiplier"] = round(premium_strong["intl_hcp_ratio"] / premium_strong["dom_hcp_ratio"], 2) if premium_strong["dom_hcp_ratio"] else 0
+
+    result["ins_intl"] = {
+        "types": type_stats,
+        "premium": premium,
+        "yearly": yearly,
+        "field_intl": field_intl_list[:15],
+        # 🟢 이중 지표 — 직접 인프라 기여만
+        "types_strong": strong_type_stats,
+        "premium_strong": premium_strong,
+        "strong_total": len(strong_recs),
+    }
+
+    print(f"  I-4 국제협력: 국제 {intl_count}편({premium['intl_share']}%) vs 국내 {dom_count}편")
+    print(f"     MNCS: 국제 {intl_mncs} vs 국내 {dom_mncs} (배수 ×{premium['mncs_multiplier']})")
+    print(f"     HCP 비중: 국제 {intl_hcp_ratio}% vs 국내 {dom_hcp_ratio}% (배수 ×{premium['hcp_multiplier']})")
+
+    return result
+
+
+def compute_insights_counterfactual(pure_induced_records, wos_by_ut, hcp_index, config: RunConfig):
+    """I-5. 반사실(counterfactual) 시뮬레이션 — "KISTI가 없었다면?"
+
+    두 시나리오:
+      A. 강한 연결만 제거 (KSC/GSDC/KREONET 직접 사용 논문 사라짐)
+         → "KISTI 슈퍼컴·네트워크 인프라가 없었다면"
+      B. 전체 KISTI 유발 제거 (NTIS 매핑까지 포함)
+         → "KISTI가 국가 정보 시스템까지 모두 없었다면"
+    """
+    result = {}
+    if not hcp_index:
+        print("  I-5 반사실: HCP 없음 — 건너뜀")
+        return result
+
+    hcp_papers = hcp_index.get("papers", {})
+    hcp_uts = set(hcp_papers.keys())
+    kisti_induced_uts = {r.get("UT") for r in pure_induced_records if r.get("UT")}
+
+    # 유발논문 전체 → 인프라 강도 분류 + 피인용/분야 정보
+    strong_uts = set()
+    for r in pure_induced_records:
+        meta = r.get("_induced_meta", {}) or {}
+        fu = r.get("FU") or meta.get("FU") or ""
+        fx = r.get("FX") or meta.get("FX") or ""
+        kind, label = _classify_infra_strength(fu, fx)
+        if kind == "strong":
+            strong_uts.add(r.get("UT"))
+
+    # === 현재 상태 ===
+    kr_hcp_total = len(hcp_uts)
+    kisti_hcp_total = len(hcp_uts & kisti_induced_uts)
+    kisti_hcp_strong = len(hcp_uts & strong_uts)
+    kisti_hcp_medium = kisti_hcp_total - kisti_hcp_strong
+
+    # 분야별 HCP
+    hcp_by_field = Counter()
+    kisti_hcp_by_field_strong = Counter()
+    kisti_hcp_by_field_medium = Counter()
+    for ut, p in hcp_papers.items():
+        f = p.get("field") or "UNKNOWN"
+        hcp_by_field[f] += 1
+        if ut in strong_uts:
+            kisti_hcp_by_field_strong[f] += 1
+        elif ut in kisti_induced_uts:
+            kisti_hcp_by_field_medium[f] += 1
+
+    # 전체 유발논문 규모·피인용
+    total_induced = len(pure_induced_records)
+    total_induced_tc = sum(r.get("TC", 0) or 0 for r in pure_induced_records)
+    strong_induced = sum(1 for r in pure_induced_records if r.get("UT") in strong_uts)
+    strong_induced_tc = sum(r.get("TC", 0) or 0 for r in pure_induced_records if r.get("UT") in strong_uts)
+
+    # HCP 피인용 합계
+    hcp_tc_total = sum(p.get("tc", 0) or 0 for p in hcp_papers.values())
+    kisti_hcp_tc = sum(p.get("tc", 0) or 0 for ut, p in hcp_papers.items() if ut in kisti_induced_uts)
+    kisti_hcp_strong_tc = sum(p.get("tc", 0) or 0 for ut, p in hcp_papers.items() if ut in strong_uts)
+
+    # === 시나리오 A: 강한 연결 제거 ===
+    scenario_a = {
+        "name": "A. KISTI 직접 인프라 없었다면",
+        "subtitle": "KSC 슈퍼컴 · KISTI-GSDC · KREONET 등이 없었다면 나오지 않았을 논문 제거",
+        "removed_hcp": kisti_hcp_strong,
+        "removed_induced": strong_induced,
+        "removed_induced_tc": strong_induced_tc,
+        "removed_hcp_tc": kisti_hcp_strong_tc,
+        "new_kr_hcp": kr_hcp_total - kisti_hcp_strong,
+        "kr_hcp_loss_pct": round(kisti_hcp_strong / kr_hcp_total * 100, 3) if kr_hcp_total else 0,
+        "hcp_tc_loss_pct": round(kisti_hcp_strong_tc / hcp_tc_total * 100, 3) if hcp_tc_total else 0,
+        "confidence": "high",
+        "confidence_desc": "사사표기에 KSC/GSDC/KREONET 등 직접 인프라가 명시 — 해당 인프라 부재 시 실제로 수행 불가능한 연구로 판단",
+    }
+
+    # === 시나리오 B: 전체 유발 제거 ===
+    scenario_b = {
+        "name": "B. KISTI 전체 역할(정보 시스템 포함) 없었다면",
+        "subtitle": "NTIS 펀딩 매핑까지 포함하여 전체 KISTI 유발논문 제거 (극단적 가정)",
+        "removed_hcp": kisti_hcp_total,
+        "removed_induced": total_induced,
+        "removed_induced_tc": total_induced_tc,
+        "removed_hcp_tc": kisti_hcp_tc,
+        "new_kr_hcp": kr_hcp_total - kisti_hcp_total,
+        "kr_hcp_loss_pct": round(kisti_hcp_total / kr_hcp_total * 100, 3) if kr_hcp_total else 0,
+        "hcp_tc_loss_pct": round(kisti_hcp_tc / hcp_tc_total * 100, 3) if hcp_tc_total else 0,
+        "confidence": "extreme",
+        "confidence_desc": "NTIS 매핑 논문은 KISTI 부재 시에도 다른 방식으로 수행됐을 가능성 — 이 시나리오는 '상한선'",
+    }
+
+    # === 분야별 감소 (시나리오 A + B 병렬) ===
+    field_impact = []
+    for f in hcp_by_field.most_common():
+        field_name = f[0]
+        kr_n = f[1]
+        if kr_n < 10:  # 최소 표본
+            continue
+        strong_loss = kisti_hcp_by_field_strong.get(field_name, 0)
+        medium_loss = kisti_hcp_by_field_medium.get(field_name, 0)
+        total_loss = strong_loss + medium_loss
+        field_impact.append({
+            "field": field_name,
+            "kr_hcp": kr_n,
+            "kisti_hcp_strong": strong_loss,
+            "kisti_hcp_medium": medium_loss,
+            "kisti_hcp_total": total_loss,
+            "loss_pct_a": round(strong_loss / kr_n * 100, 2),
+            "loss_pct_b": round(total_loss / kr_n * 100, 2),
+            "new_hcp_a": kr_n - strong_loss,
+            "new_hcp_b": kr_n - total_loss,
+        })
+    # 전체 감소율 기준으로 정렬
+    field_impact.sort(key=lambda x: -x["loss_pct_b"])
+
+    # === 대표 논문 (사라지는 HCP 중 강한 연결만) ===
+    lost_papers_strong = []
+    for ut in hcp_uts & strong_uts:
+        p = hcp_papers.get(ut, {})
+        lost_papers_strong.append({
+            "ut": ut,
+            "title": p.get("title", ""),
+            "year": p.get("year"),
+            "tc": p.get("tc", 0),
+            "field": p.get("field", ""),
+            "source": p.get("source", "")[:80],
+        })
+    lost_papers_strong.sort(key=lambda x: -(x.get("tc") or 0))
+
+    # 대표 논문 (시나리오 B에서만 추가로 사라지는 NTIS 매핑 HCP — AlphaFold 등)
+    medium_only_uts = (hcp_uts & kisti_induced_uts) - strong_uts
+    lost_papers_medium = []
+    for ut in medium_only_uts:
+        p = hcp_papers.get(ut, {})
+        lost_papers_medium.append({
+            "ut": ut,
+            "title": p.get("title", ""),
+            "year": p.get("year"),
+            "tc": p.get("tc", 0),
+            "field": p.get("field", ""),
+            "source": p.get("source", "")[:80],
+        })
+    lost_papers_medium.sort(key=lambda x: -(x.get("tc") or 0))
+
+    # === 국제 비교 맥락 (한국의 HCP 상대 순위 영향) ===
+    # 참고 수치 — 2024 Clarivate 발표 기준
+    # 한국: ~7,614편, 일본: ~6,000편, 독일: ~12,000편, 영국: ~11,500편
+    # (정확 수치는 Clarivate 공식 발표 필요. 이는 근사값)
+    global_ref = {
+        "us": 35000,        # 대략
+        "china": 60000,     # 대략
+        "uk": 11500,
+        "germany": 12000,
+        "korea": 7614,      # 실제 데이터
+        "japan": 6000,      # 대략
+        "canada": 5500,
+        "france": 6500,
+    }
+
+    result["ins_counterfactual"] = {
+        "current": {
+            "kr_hcp_total": kr_hcp_total,
+            "kisti_hcp_total": kisti_hcp_total,
+            "kisti_hcp_strong": kisti_hcp_strong,
+            "kisti_hcp_medium": kisti_hcp_medium,
+            "total_induced": total_induced,
+            "total_induced_tc": total_induced_tc,
+            "strong_induced": strong_induced,
+            "strong_induced_tc": strong_induced_tc,
+            "hcp_tc_total": hcp_tc_total,
+            "kisti_hcp_tc": kisti_hcp_tc,
+        },
+        "scenario_a": scenario_a,
+        "scenario_b": scenario_b,
+        "field_impact": field_impact[:15],
+        "lost_papers_strong": lost_papers_strong[:15],
+        "lost_papers_medium": lost_papers_medium[:10],
+        "global_ref": global_ref,
+    }
+
+    print(f"  I-5 반사실:")
+    print(f"     [A] 강한연결 제거 → KR HCP {kr_hcp_total}→{scenario_a['new_kr_hcp']} (-{scenario_a['kr_hcp_loss_pct']}%)")
+    print(f"     [B] 전체 제거 → KR HCP {kr_hcp_total}→{scenario_b['new_kr_hcp']} (-{scenario_b['kr_hcp_loss_pct']}%)")
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════
 # 논문별 레코드 빌드 (프론트엔드 논문관리 페이지용)
 # ═══════════════════════════════════════════════════════════
 def _lookup_jif(r, jcr_data):
@@ -3063,17 +4162,84 @@ def _lookup_jif(r, jcr_data):
     return jif, q if isinstance(q, str) else None
 
 
+_US_STATE_ZIP_RE = re.compile(r"^[A-Z]{2}\s+\d{5}(-\d{4})?\s+USA$")
+
+
+def _split_c1_blocks(c1):
+    """C1 필드를 블록으로 분할. '[저자리스트]' 내부의 '; ' 저자 구분자는 무시.
+
+    WoS C1 예:
+      [Abbott, R.; Smith, J.] CERN, Geneva, Switzerland; [Kim, S.] KISTI, Daejeon, South Korea
+    →
+      ["[Abbott, R.; Smith, J.] CERN, Geneva, Switzerland",
+       "[Kim, S.] KISTI, Daejeon, South Korea"]
+    """
+    blocks = []
+    current = []
+    depth = 0
+    i = 0
+    n = len(c1)
+    while i < n:
+        c = c1[i]
+        if c == '[':
+            depth += 1
+            current.append(c)
+        elif c == ']':
+            if depth > 0:
+                depth -= 1
+            current.append(c)
+        elif depth == 0 and c == ';' and i + 1 < n and c1[i + 1] == ' ':
+            blocks.append("".join(current))
+            current = []
+            i += 1  # skip space
+        else:
+            current.append(c)
+        i += 1
+    if current:
+        blocks.append("".join(current))
+    return blocks
+
+
 def _parse_countries(c1):
-    """C1 필드에서 국가 목록 추출"""
+    """C1 필드에서 국가 목록 추출.
+
+    WoS C1 필드 구조:
+      [저자리스트] 소속기관, 시, 주ZIP 국가
+    대형 공동연구(CERN CMS 등)에서 [저자] 괄호 안에 '; '로 수십명의 저자가
+    나열되면 단순 split이 깨짐. 괄호 인식 파싱 필요.
+    """
     if not c1:
         return []
     countries = set()
-    for block in c1.split("; "):
-        parts = block.strip().rstrip(".").split(", ")
-        if len(parts) >= 2:
-            country = parts[-1].strip().upper()
-            if country:
-                countries.add(country)
+    for block in _split_c1_blocks(c1):
+        b = block.strip()
+        # 앞쪽 [저자리스트] 제거 — ']' 뒤부터가 소속
+        if ']' in b:
+            b = b.split(']', 1)[1].lstrip()
+
+        parts = b.rstrip(".").split(", ")
+        if len(parts) < 2:
+            continue
+        country = parts[-1].strip().upper()
+
+        # 미국 주+ZIP+USA → USA 정규화
+        if _US_STATE_ZIP_RE.match(country):
+            country = "USA"
+
+        # 4자 미만: 저자 이니셜 (최단 국가명 IRAN/PERU/CUBA/OMAN = 4자)
+        if len(country) < 4:
+            continue
+        # 마침표 포함: 저자 이니셜 (예: "D. M", "J. -G")
+        if "." in country:
+            continue
+        # 숫자 포함: 불완전 주소 등
+        if any(ch.isdigit() for ch in country):
+            continue
+        # 알파벳으로 시작하지 않음
+        if not country[0].isalpha():
+            continue
+
+        countries.add(country)
     return sorted(countries)
 
 
@@ -3202,7 +4368,7 @@ def main():
     print(f"출력: {config.output}")
     print("=" * 60)
 
-    wos_data, inst_data, jcr_data, induced_papers, kbsi_induced_papers, ibs_induced_papers, pal_induced_papers, gri_personnel = load_data(config)
+    wos_data, inst_data, jcr_data, induced_papers, kbsi_induced_papers, ibs_induced_papers, pal_induced_papers, gri_personnel, hcp_index = load_data(config)
     (wos_by_ut, kisti_records, pure_induced_records, induced_meta,
      kisti_author_uts, pure_induced_uts,
      kbsi_records, kbsi_pure_induced_records, kbsi_induced_meta,
@@ -3252,6 +4418,21 @@ def main():
                           kr_top10p_by_year, kr_top10p_by_year_field,
                           kr_avg_tc_by_year_field, sec2.get("sec2_7"),
                           config)
+
+    # 💡 정책 인사이트 (신규 메뉴 그룹)
+    print("\n=== 💡 정책 인사이트 모듈 ===")
+    insights = compute_insights(kisti_records, pure_induced_records,
+                                 kr_by_year, kr_top10p_by_year,
+                                 jcr_data, wos_by_ut, config)
+    insights.update(compute_insights_hcp(pure_induced_records, pure_induced_uts,
+                                          wos_by_ut, jcr_data, hcp_index, config))
+    insights.update(compute_insights_fields(pure_induced_records, wos_by_ut,
+                                             hcp_index, config))
+    insights.update(compute_insights_intl(pure_induced_records, jcr_data,
+                                           kr_avg_tc_by_year_field,
+                                           hcp_index, config))
+    insights.update(compute_insights_counterfactual(pure_induced_records,
+                                                     wos_by_ut, hcp_index, config))
 
     # 논문별 레코드 빌드
     (kisti_paper_recs, induced_paper_recs, kbsi_paper_recs, kbsi_induced_paper_recs,
@@ -3310,6 +4491,7 @@ def main():
         **sec9,
         **sec10,
         **sec11,
+        **insights,
         "papers": {
             "kisti": kisti_paper_recs,
             "induced": induced_paper_recs,

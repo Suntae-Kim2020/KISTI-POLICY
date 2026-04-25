@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>감사 로그 — KISTI Policy</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel2: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #7d8590;
+    --accent: #2f81f7;
+    --accent-hover: #4493f8;
+    --success: #3fb950;
+    --warning: #d29922;
+    --error: #f85149;
+    --admin-badge: #a371f7;
+    --download: #56d364;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, Roboto, sans-serif;
+    font-size: 13px; min-height: 100vh;
+  }
+  .page { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 20px;
+  }
+  header h1 { font-size: 20px; }
+  header .actions { display: flex; gap: 14px; align-items: center; font-size: 13px; }
+  header a { color: var(--accent); text-decoration: none; }
+  header a:hover { color: var(--accent-hover); }
+  header .user-info { color: var(--muted); }
+
+  section {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-bottom: 16px;
+  }
+  .filters {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .filters label { color: var(--muted); font-size: 12px; }
+  select, input[type="text"] {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px; color: var(--text); font-size: 13px;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--accent); }
+  button {
+    background: var(--accent); color: white; border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { background: var(--accent-hover); }
+  button.clear {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+  }
+  button.clear:hover { background: #252c36; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { font-weight: 500; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
+  tbody tr:hover { background: var(--panel2); }
+  td.ts { color: var(--muted); font-family: "SF Mono", Menlo, monospace; white-space: nowrap; }
+  td.email { font-family: "SF Mono", Menlo, monospace; }
+  td.ip { color: var(--muted); font-family: "SF Mono", Menlo, monospace; font-size: 11px; }
+  td.details { color: var(--muted); font-size: 11px; }
+  td.details code {
+    background: var(--bg); padding: 1px 4px; border-radius: 3px;
+    color: var(--text); font-size: 11px;
+  }
+
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 9px; font-size: 10px; font-weight: 500; }
+  .badge.login { background: rgba(47, 129, 247, 0.15); color: var(--accent); border: 1px solid rgba(47, 129, 247, 0.3); }
+  .badge.login_failed { background: rgba(248, 81, 73, 0.15); color: var(--error); border: 1px solid rgba(248, 81, 73, 0.3); }
+  .badge.logout { background: var(--panel2); color: var(--muted); border: 1px solid var(--border); }
+  .badge.download_zip, .badge.download_html { background: rgba(63, 185, 80, 0.15); color: var(--download); border: 1px solid rgba(63, 185, 80, 0.3); }
+
+  .empty { text-align: center; padding: 40px; color: var(--muted); font-size: 13px; }
+  .count { color: var(--muted); font-size: 12px; }
+
+  .flash {
+    padding: 10px 14px; border-radius: 6px; margin-bottom: 10px; font-size: 12px;
+  }
+  .flash.success {
+    background: rgba(63, 185, 80, 0.1);
+    border: 1px solid rgba(63, 185, 80, 0.3);
+    color: var(--success);
+  }
+  .flash.error {
+    background: rgba(248, 81, 73, 0.1);
+    border: 1px solid rgba(248, 81, 73, 0.3);
+    color: var(--error);
+  }
+
+  button.del {
+    background: transparent;
+    border: 1px solid rgba(248, 81, 73, 0.35);
+    color: var(--error);
+    padding: 2px 7px;
+    font-size: 11px;
+    border-radius: 4px;
+  }
+  button.del:hover { background: rgba(248, 81, 73, 0.12); }
+  td.del-col form { display: inline; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>감사 로그</h1>
+    <div class="actions">
+      <a href="{{ url_for('index') }}">← 대시보드</a>
+      <a href="{{ url_for('admin.users_list') }}">사용자 관리</a>
+      <span class="user-info">{{ current_email }} (관리자)</span>
+      <a href="{{ url_for('auth.logout') }}">로그아웃</a>
+    </div>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <section>
+    <form class="filters" method="GET">
+      <label>사용자:</label>
+      <select name="email">
+        <option value="">전체</option>
+        {% for e in user_emails %}
+        <option value="{{ e }}" {% if filter_email == e %}selected{% endif %}>{{ e }}</option>
+        {% endfor %}
+      </select>
+
+      <label>이벤트:</label>
+      <select name="event_type">
+        <option value="">전체</option>
+        {% for t in ['login', 'login_failed', 'logout', 'download_zip', 'download_html'] %}
+        <option value="{{ t }}" {% if filter_type == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+
+      <label>기간:</label>
+      <select name="days">
+        {% for d in [1, 7, 30, 90] %}
+        <option value="{{ d }}" {% if filter_days == d %}selected{% endif %}>최근 {{ d }}일</option>
+        {% endfor %}
+      </select>
+
+      <button type="submit">조회</button>
+      <a href="{{ url_for('admin.audit_page') }}"><button type="button" class="clear">필터 초기화</button></a>
+      <span class="count">· 결과: {{ events|length }}건</span>
+    </form>
+  </section>
+
+  <section style="padding: 0;">
+    {% if events %}
+    <table>
+      <thead>
+        <tr>
+          <th>시각 (UTC)</th>
+          <th>이메일</th>
+          <th>이벤트</th>
+          <th>IP</th>
+          <th>상세</th>
+          <th style="text-align:right;">삭제</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in events %}
+        <tr>
+          <td class="ts">{{ e.timestamp.strftime('%m-%d %H:%M:%S') if e.timestamp else '—' }}</td>
+          <td class="email">
+            {% if e.email %}
+              <a href="{{ url_for('admin.user_history', email=e.email) }}" style="color: var(--text); text-decoration: none;">{{ e.email }}</a>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td><span class="badge {{ e.event_type }}">{{ e.event_type }}</span></td>
+          <td class="ip">{{ e.ip or '—' }}</td>
+          <td class="details">
+            {% set d = e.details or {} %}
+            {% if e.event_type == 'login' %}
+              {% if d.remember %}remember{% endif %} {% if d.is_admin %}<code>admin</code>{% endif %}
+            {% elif e.event_type == 'login_failed' %}
+              <code>{{ d.reason or '' }}</code>
+              {% if d.attempts_left is defined %}· 남은 시도: {{ d.attempts_left }}{% endif %}
+            {% elif e.event_type == 'logout' %}
+              {% if d.duration_seconds %}
+                이용 시간: {{ (d.duration_seconds / 60)|round(1) }}분
+              {% endif %}
+            {% elif e.event_type == 'download_zip' %}
+              {{ d.filename or '' }} · {{ d.file_count or 0 }}개 · {{ d.size_mb or 0 }}MB
+            {% elif e.event_type == 'download_html' %}
+              {{ d.filename or '' }} · {{ d.size_mb or 0 }}MB · {{ d.period or '' }}
+            {% endif %}
+          </td>
+          <td class="del-col" style="text-align:right;">
+            <form method="POST" action="{{ url_for('admin.audit_delete') }}"
+                  onsubmit="return confirm('이 감사 로그 1건을 삭제하시겠습니까?\n이 동작은 되돌릴 수 없습니다.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="doc_id" value="{{ e._id }}">
+              <input type="hidden" name="back" value="{{ request.full_path }}">
+              <button type="submit" class="del">🗑️</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">해당 조건의 감사 이벤트가 없습니다.</div>
+    {% endif %}
+  </section>
+
+  <section style="color: var(--muted); font-size: 11px;">
+    <strong>참고</strong> · 시각은 UTC 기준입니다. · 최대 {{ events|length }}건 표시, 더 오래된 기록은 기간을 늘리세요.
+    · Firestore 무료 티어 범위 내 저장 (30명 기준 영구 보관 가능).
+  </section>
+</div>
+</body>
+</html>

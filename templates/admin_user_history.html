@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ email }} 활동 이력 — KISTI Policy</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2128; --border: #30363d;
+    --text: #e6edf3; --muted: #7d8590; --accent: #2f81f7; --accent-hover: #4493f8;
+    --success: #3fb950; --warning: #d29922; --error: #f85149;
+    --admin-badge: #a371f7; --download: #56d364;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, Roboto, sans-serif;
+    font-size: 13px; min-height: 100vh; }
+  .page { max-width: 1000px; margin: 0 auto; padding: 24px; }
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 20px;
+  }
+  header h1 { font-size: 18px; font-family: "SF Mono", Menlo, monospace; }
+  header h1 .sub { color: var(--muted); font-size: 13px; font-family: inherit; margin-left: 8px; }
+  header .actions { display: flex; gap: 14px; align-items: center; font-size: 13px; }
+  header a { color: var(--accent); text-decoration: none; }
+
+  .summary {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px; margin-bottom: 16px;
+  }
+  .stat-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px;
+  }
+  .stat-card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; margin-bottom: 4px; }
+  .stat-card .value { font-size: 22px; font-weight: 600; }
+  .stat-card .unit { color: var(--muted); font-size: 13px; margin-left: 4px; }
+
+  section {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-bottom: 16px;
+  }
+  section h2 { font-size: 14px; margin-bottom: 12px; color: var(--text); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { font-weight: 500; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+  td.ts { color: var(--muted); font-family: "SF Mono", Menlo, monospace; white-space: nowrap; }
+  td.ip { color: var(--muted); font-family: "SF Mono", Menlo, monospace; font-size: 11px; }
+  td.details { color: var(--muted); font-size: 11px; }
+
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 9px; font-size: 10px; font-weight: 500; }
+  .badge.login { background: rgba(47, 129, 247, 0.15); color: var(--accent); border: 1px solid rgba(47, 129, 247, 0.3); }
+  .badge.login_failed { background: rgba(248, 81, 73, 0.15); color: var(--error); border: 1px solid rgba(248, 81, 73, 0.3); }
+  .badge.logout { background: var(--panel2); color: var(--muted); border: 1px solid var(--border); }
+  .badge.download_zip, .badge.download_html { background: rgba(63, 185, 80, 0.15); color: var(--download); border: 1px solid rgba(63, 185, 80, 0.3); }
+  .badge.admin { background: rgba(163, 113, 247, 0.15); color: var(--admin-badge); border: 1px solid rgba(163, 113, 247, 0.3); }
+
+  .empty { text-align: center; padding: 30px; color: var(--muted); }
+
+  .flash {
+    padding: 10px 14px; border-radius: 6px; margin-bottom: 10px; font-size: 12px;
+  }
+  .flash.success { background: rgba(63, 185, 80, 0.1); border: 1px solid rgba(63, 185, 80, 0.3); color: var(--success); }
+  .flash.error { background: rgba(248, 81, 73, 0.1); border: 1px solid rgba(248, 81, 73, 0.3); color: var(--error); }
+
+  button.del {
+    background: transparent; border: 1px solid rgba(248, 81, 73, 0.35);
+    color: var(--error); padding: 2px 7px; font-size: 11px; border-radius: 4px;
+  }
+  button.del:hover { background: rgba(248, 81, 73, 0.12); }
+  td.del-col form { display: inline; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>{{ email }}<span class="sub">
+      {{ user.name }}
+      {% if user.is_admin %}<span class="badge admin">ADMIN</span>{% endif %}
+    </span></h1>
+    <div class="actions">
+      <a href="{{ url_for('admin.users_list') }}">← 사용자 목록</a>
+      <a href="{{ url_for('admin.audit_page') }}">전체 로그</a>
+      <a href="{{ url_for('auth.logout') }}">로그아웃</a>
+    </div>
+  </header>
+
+  {% set c = summary.counts_30d or {} %}
+  <div class="summary">
+    <div class="stat-card">
+      <div class="label">최근 로그인</div>
+      <div class="value" style="font-size: 14px;">
+        {{ summary.last_login.strftime('%Y-%m-%d %H:%M') if summary.last_login else '—' }}
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="label">30일 로그인</div>
+      <div class="value">{{ c.get('login', 0) }}<span class="unit">회</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">30일 실패</div>
+      <div class="value">{{ c.get('login_failed', 0) }}<span class="unit">회</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">ZIP 다운로드</div>
+      <div class="value">{{ c.get('download_zip', 0) }}<span class="unit">회</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">HTML 다운로드</div>
+      <div class="value">{{ c.get('download_html', 0) }}<span class="unit">회</span></div>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <section style="padding: 0;">
+    <div style="padding: 14px 16px 10px;">
+      <h2>최근 30일 활동 ({{ events|length }}건)</h2>
+    </div>
+    {% if events %}
+    <table>
+      <thead>
+        <tr>
+          <th>시각 (UTC)</th>
+          <th>이벤트</th>
+          <th>IP</th>
+          <th>상세</th>
+          <th style="text-align:right;">삭제</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in events %}
+        <tr>
+          <td class="ts">{{ e.timestamp.strftime('%Y-%m-%d %H:%M:%S') if e.timestamp else '—' }}</td>
+          <td><span class="badge {{ e.event_type }}">{{ e.event_type }}</span></td>
+          <td class="ip">{{ e.ip or '—' }}</td>
+          <td class="details">
+            {% set d = e.details or {} %}
+            {% if e.event_type == 'logout' and d.duration_seconds %}
+              이용 시간: {{ (d.duration_seconds / 60)|round(1) }}분
+            {% elif e.event_type == 'download_zip' %}
+              {{ d.filename or '' }} · {{ d.file_count or 0 }}개 · {{ d.size_mb or 0 }}MB
+            {% elif e.event_type == 'download_html' %}
+              {{ d.filename or '' }} · {{ d.size_mb or 0 }}MB · 기간 {{ d.period or '' }}
+            {% elif e.event_type == 'login_failed' %}
+              사유: {{ d.reason or '' }}
+            {% elif e.event_type == 'login' %}
+              {% if d.remember %}remember 체크{% endif %}
+            {% endif %}
+          </td>
+          <td class="del-col" style="text-align:right;">
+            <form method="POST" action="{{ url_for('admin.audit_delete') }}"
+                  onsubmit="return confirm('이 감사 로그 1건을 삭제하시겠습니까?\n이 동작은 되돌릴 수 없습니다.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="doc_id" value="{{ e._id }}">
+              <input type="hidden" name="back" value="{{ request.full_path }}">
+              <button type="submit" class="del">🗑️</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">최근 30일 활동 기록이 없습니다.</div>
+    {% endif %}
+  </section>
+</div>
+</body>
+</html>
