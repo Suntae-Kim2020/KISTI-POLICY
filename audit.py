@@ -18,6 +18,21 @@ from datetime import datetime, timedelta, timezone
 from flask import request
 from flask_login import current_user
 
+# 한국 표준시 (UTC+9)
+KST = timezone(timedelta(hours=9))
+
+
+def _to_kst(ts):
+    """Firestore의 UTC 타임스탬프를 한국 시간으로 변환."""
+    if ts is None:
+        return None
+    if hasattr(ts, "astimezone"):
+        try:
+            return ts.astimezone(KST)
+        except Exception:
+            return ts
+    return ts
+
 _client = None
 _client_init_failed = False
 
@@ -110,6 +125,7 @@ def query_events(email=None, event_type=None, since=None, until=None, limit=100)
         for doc in q.stream():
             data = doc.to_dict()
             data["_id"] = doc.id
+            data["timestamp"] = _to_kst(data.get("timestamp"))
             results.append(data)
         return results
     except Exception as e:
@@ -140,7 +156,7 @@ def last_login_map():
             data = doc.to_dict()
             email = data.get("email", "")
             if email and email not in result:
-                result[email] = data.get("timestamp")
+                result[email] = _to_kst(data.get("timestamp"))
         return result
     except Exception as e:
         try:
@@ -195,7 +211,7 @@ def user_summary(email):
                 ts = d.get("timestamp")
                 if ts and (last_login is None or ts > last_login):
                     last_login = ts
-        return {"counts_30d": counts, "last_login": last_login}
+        return {"counts_30d": counts, "last_login": _to_kst(last_login)}
     except Exception as e:
         try:
             from flask import current_app
