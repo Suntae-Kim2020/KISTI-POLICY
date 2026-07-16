@@ -5004,6 +5004,8 @@ def main():
         "induced_papers": len(pure_induced_records),
         "kisti_avg_tc": round(sum(r.get("TC", 0) for r in kisti_records) / max(len(kisti_records), 1), 1),
         "induced_avg_tc": round(sum(r.get("TC", 0) for r in pure_induced_records) / max(len(pure_induced_records), 1), 1),
+        # 한국 전체 평균 피인용(분석기간): 대시보드 인사이트 문구가 참조 → 없으면 undefined/NaN
+        "kr_avg_tc": round(sum(kr_tc_by_year.values()) / max(kr_count, 1), 1),
         "kr_total": kr_count,
         "kisti_kr_share": round(len(kisti_records) / max(kr_count, 1) * 100, 2),
         "combined_kr_share": round((len(kisti_records) + len(pure_induced_records)) / max(kr_count, 1) * 100, 2),
