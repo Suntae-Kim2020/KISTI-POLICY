@@ -51,7 +51,7 @@ gcloud run deploy "$SERVICE" \
   --region "$REGION" \
   --project "$PROJECT" \
   --allow-unauthenticated \
-  --memory 1Gi \
+  --memory 2Gi \
   --port 8080 \
   --timeout 300 \
   --set-env-vars="GCP_PROJECT=$PROJECT,USERS_SECRET=$USERS_SECRET,FLASK_SECRET_NAME=$FLASK_SECRET" \

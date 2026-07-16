@@ -726,9 +726,9 @@ mark.hl-kbsi { background: rgba(76,175,80,0.35); color: var(--green); border-rad
         <select id="versionSelect" onchange="onVersionSelect(this.value)"></select>
         <span class="ver-status" id="verStatus"></span>
         <label>기간</label>
-        <input type="number" id="startYearInput" min="2000" max="2030" value="2008">
+        <input type="number" id="startYearInput" min="2000" max="2030" value="2011">
         <span class="sep">~</span>
-        <input type="number" id="endYearInput" min="2000" max="2030" value="2024">
+        <input type="number" id="endYearInput" min="2000" max="2030" value="2025">
         <button onclick="applyPeriod()">적용</button>
         <button class="btn-generate" id="btnGenerate" onclick="generateData()" style="display:none;">생성</button>
         <button onclick="exportAll()">일괄 저장</button>
@@ -793,7 +793,7 @@ mark.hl-kbsi { background: rgba(76,175,80,0.35); color: var(--green); border-rad
         <div class="section-title collapsed" onclick="toggleSection(this)">5. KBSI 유발논문분석</div>
         <div class="nav-group collapsed">
         <a class="nav-item" data-page="sec5_1" onclick="showPage('sec5_1')">5-1. 유발논문 현황</a>
-        <a class="nav-item" data-page="sec5_2" onclick="showPage('sec5_2')">5-2. 인프라별 분석</a>
+        <a class="nav-item" data-page="sec5_2" onclick="showPage('sec5_2')">5-2. 직접/간접 유발 분석</a>
         <a class="nav-item" data-page="sec5_3" onclick="showPage('sec5_3')">5-3. 수혜기관 분석</a>
         <a class="nav-item" data-page="sec5_4" onclick="showPage('sec5_4')">5-4. 분야별 분석</a>
         <a class="nav-item" data-page="sec5_5" onclick="showPage('sec5_5')">5-5. 영향력 분석</a>
@@ -820,7 +820,7 @@ mark.hl-kbsi { background: rgba(76,175,80,0.35); color: var(--green); border-rad
         <div class="section-title collapsed" onclick="toggleSection(this)">8. IBS 유발논문분석</div>
         <div class="nav-group collapsed">
         <a class="nav-item" data-page="sec8_1" onclick="showPage('sec8_1')">8-1. 유발논문 현황</a>
-        <a class="nav-item" data-page="sec8_2" onclick="showPage('sec8_2')">8-2. 인프라별 분석</a>
+        <a class="nav-item" data-page="sec8_2" onclick="showPage('sec8_2')">8-2. 직접/간접 유발 분석</a>
         <a class="nav-item" data-page="sec8_3" onclick="showPage('sec8_3')">8-3. 수혜기관 분석</a>
         <a class="nav-item" data-page="sec8_4" onclick="showPage('sec8_4')">8-4. 분야별 분석</a>
         <a class="nav-item" data-page="sec8_5" onclick="showPage('sec8_5')">8-5. 영향력 분석</a>
@@ -837,7 +837,7 @@ mark.hl-kbsi { background: rgba(76,175,80,0.35); color: var(--green); border-rad
         <div class="section-title collapsed" onclick="toggleSection(this)">10. PAL 유발논문분석</div>
         <div class="nav-group collapsed">
         <a class="nav-item" data-page="sec10_1" onclick="showPage('sec10_1')">10-1. 유발논문 현황</a>
-        <a class="nav-item" data-page="sec10_2" onclick="showPage('sec10_2')">10-2. 인프라별 분석</a>
+        <a class="nav-item" data-page="sec10_2" onclick="showPage('sec10_2')">10-2. 직접/간접 유발 분석</a>
         <a class="nav-item" data-page="sec10_3" onclick="showPage('sec10_3')">10-3. 수혜기관 분석</a>
         <a class="nav-item" data-page="sec10_4" onclick="showPage('sec10_4')">10-4. 분야별 분석</a>
         <a class="nav-item" data-page="sec10_5" onclick="showPage('sec10_5')">10-5. 영향력 분석</a>
@@ -856,6 +856,7 @@ mark.hl-kbsi { background: rgba(76,175,80,0.35); color: var(--green); border-rad
         <a class="nav-item insight-item" data-page="ins_fields" onclick="showPage('ins_fields')">I-3. 분야별 의존도</a>
         <a class="nav-item insight-item" data-page="ins_intl" onclick="showPage('ins_intl')">I-4. 국제 협력 질적 비교</a>
         <a class="nav-item insight-item" data-page="ins_counterfactual" onclick="showPage('ins_counterfactual')">I-5. "KISTI가 없었다면" 반사실 시뮬레이션</a>
+        <a class="nav-item insight-item" data-page="ins_field_quality" onclick="showPage('ins_field_quality')">I-6. 분야별 질적 비교 (4기관)</a>
         </div>
     </nav>
     <div class="main" id="mainContent">
@@ -883,7 +884,7 @@ Chart.defaults.plugins.datalabels = { display: false };
 
 let DATA = null;
 let ORIG_DATA = {};  // 인력 등 고정 데이터 원본 보존용
-let PERIOD = { start: 2008, end: 2024 };  // 현재 활성 분석 기간
+let PERIOD = { start: 2011, end: 2025 };  // 현재 활성 분석 기간
 let currentPage = 'overview';
 let PAPERS_KISTI = [];
 let PAPERS_INDUCED = [];
@@ -1157,7 +1158,8 @@ async function exportAll() {
         'ins_hcp',
         'ins_fields',
         'ins_intl',
-        'ins_counterfactual'
+        'ins_counterfactual',
+        'ins_field_quality'
     ];
 
     // 현재 상태 저장
@@ -1479,8 +1481,8 @@ function _applyDataGlobals() {
     KOREA = DATA.korea || {};
     // PERIOD 설정
     if (DATA._meta) {
-        PERIOD.start = DATA._meta.start_year || 2008;
-        PERIOD.end = DATA._meta.end_year || 2024;
+        PERIOD.start = DATA._meta.start_year || 2011;
+        PERIOD.end = DATA._meta.end_year || 2025;
         document.getElementById('startYearInput').value = PERIOD.start;
         document.getElementById('endYearInput').value = PERIOD.end;
         document.getElementById('headerSubtitle').textContent =
@@ -1526,8 +1528,8 @@ async function switchVersion(ver) {
 
 async function generateData() {
     const ver = document.getElementById('versionSelect').value;
-    const startY = parseInt(document.getElementById('startYearInput').value) || 2008;
-    const endY = parseInt(document.getElementById('endYearInput').value) || 2024;
+    const startY = parseInt(document.getElementById('startYearInput').value) || 2011;
+    const endY = parseInt(document.getElementById('endYearInput').value) || 2025;
 
     // 오버레이 표시
     const overlay = document.createElement('div');
@@ -1603,7 +1605,8 @@ function buildPages() {
         'ins_hcp',
         'ins_fields',
         'ins_intl',
-        'ins_counterfactual'];
+        'ins_counterfactual',
+        'ins_field_quality'];
     pages.forEach(id => {
         const div = document.createElement('div');
         div.className = 'page';
@@ -1720,7 +1723,7 @@ renderers.overview = function(D) {
             <div class="chart-card"><h3>IBS 연도별 논문수 (직접 + 유발)</h3><div class="chart-wrap"><canvas id="ov-ibs-combined"></canvas></div></div>
             <div class="chart-card"><h3>KISTI vs KBSI vs IBS 비교</h3><div class="chart-wrap"><canvas id="ov-compare"></canvas></div></div>
         </div>
-        <div class="note">* 유발논문: 해당 기관의 인프라를 활용했으나 소속 저자가 없는 논문. KISTI는 2008-2018 SCIE 부재로 해당 기간 과소집계 가능.</div>
+        <div class="note">* 유발논문: 해당 기관의 인프라를 활용했으나 소속 저자가 없는 논문. 분석 기간 2011-2025년, SCIE+SSCI+AHCI 전수 기준.</div>
     `;
     const sec32 = D.sec3_2;
     const yrs = sec32.years.map(d => d.year);
@@ -1896,7 +1899,7 @@ renderers.sec1_3 = function(D) {
         <div class="page-title">1-3. KISTI 논문 영향력 분석</div>
         <div class="chart-card"><h3>KISTI vs 한국 평균 피인용 추이</h3><p class="chart-insight">KISTI 논문의 평균 피인용(${D.summary.kisti_avg_tc}회)은 한국 전체 평균(${D.summary.kr_avg_tc}회)의 약 ${round2(D.summary.kisti_avg_tc/Math.max(D.summary.kr_avg_tc,0.1),1)}배로, 양적 규모는 작지만 질적 영향력이 매우 높다. 연도별 추이에서 KISTI가 한국 평균을 지속적으로 상회하는 패턴은 고영향력 연구에 집중하는 기관 특성을 보여준다.</p><div class="chart-wrap"><canvas id="c1_3_tc"></canvas></div></div>
         <div class="chart-row">
-            <div class="chart-card"><h3>연도별 HCP(상위1%) 논문수</h3><p class="chart-insight">한국 전체 논문 중 연도별 피인용 상위 1%에 해당하는 KISTI 논문(HCP)의 수이다. 총 ${num(d.years.reduce((s,y)=>s+y.hcp_count,0))}건의 HCP를 보유하고 있으며, 이는 KISTI 연구가 최상위 피인용 논문군에도 기여하고 있음을 의미한다.</p><div class="chart-wrap"><canvas id="c1_3_hcp"></canvas></div></div>
+            <div class="chart-card"><h3>연도별 상위 1% 피인용 논문수 <span style="font-size:11px;font-weight:400;color:var(--fg2);">(자체계산 · Clarivate 공식 HCP 아님)</span></h3><p class="chart-insight">한국 전체 논문 중 연도별 피인용 상위 1%에 해당하는 KISTI 논문 수이다(연도별 TC 상위 1% 자체 기준 — Clarivate 공식 HCP(ESI HC 필드)와는 정의가 다름). 총 ${num(d.years.reduce((s,y)=>s+y.hcp_count,0))}건으로, KISTI 연구가 최상위 피인용 논문군에도 기여하고 있음을 의미한다. <span style="color:var(--fg2);">※ 공식 HCP 분석은 I-2 인사이트 참조.</span></p><div class="chart-wrap"><canvas id="c1_3_hcp"></canvas></div></div>
             <div class="chart-card"><h3>피인용 분포</h3><p class="chart-insight">KISTI 논문의 피인용 횟수 분포를 구간별로 나타낸다. 피인용이 높은 구간에 분포가 넓을수록 영향력 있는 연구 비중이 높음을 의미한다.</p><div class="chart-wrap"><canvas id="c1_3_dist"></canvas></div></div>
         </div>
     `;
@@ -1919,7 +1922,7 @@ renderers.sec1_3 = function(D) {
         data: { labels: yrs, datasets: [{ label: 'HCP', data: d.years.map(y => y.hcp_count), backgroundColor: COLORS.red }] },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
-    addDataTable('c1_3_hcp', ['연도','HCP 논문수','전체 논문수'],
+    addDataTable('c1_3_hcp', ['연도','상위1% 논문수','전체 논문수'],
         d.years.map(y => [y.year, num(y.hcp_count), num(y.paper_count)]));
 
     destroyChart('c1_3_dist');
@@ -2040,7 +2043,7 @@ renderers.sec2_1 = function(D) {
         </div>
         <div class="chart-card"><h3>연도별 유발논문수</h3><p class="chart-insight">KISTI 인프라(슈퍼컴퓨터, KREONET, EDISON 등)를 활용했으나 KISTI 소속 저자가 없는 유발논문의 연도별 추이이다. 총 ${num(d.total)}건으로 직접논문(${num(D.summary.kisti_papers)}건)의 약 ${round2(d.total/Math.max(D.summary.kisti_papers,1),1)}배에 달하며, 이는 KISTI 인프라의 외부 연구 파급효과가 기관 자체 연구를 크게 초과함을 보여준다.</p><div class="chart-wrap"><canvas id="c2_1_bar"></canvas></div></div>
         <div class="chart-card"><h3>한국 대비 비중 (%)</h3><p class="chart-insight">유발논문의 한국 전체 대비 비중 추이를 통해, KISTI 인프라가 한국 전체 연구 생산에 기여하는 규모를 확인할 수 있다. 직접논문과 합산하면 한국 전체의 약 ${D.summary.combined_kr_share}%를 KISTI가 직·간접적으로 뒷받침하고 있다.</p><div class="chart-wrap"><canvas id="c2_1_share"></canvas></div></div>
-        <div class="note">* 2008-2018 SCIE 원시데이터 부재로 해당 기간 유발논문이 과소 집계될 수 있습니다.</div>
+        <div class="note">* 유발논문은 2011-2025년 SCIE+SSCI+AHCI 전수를 반영합니다(구 2008-2018 SCIE 공백 해소).</div>
     `;
     const yrs = d.years.map(y => y.year);
     destroyChart('c2_1_bar');
@@ -2204,7 +2207,7 @@ renderers.sec2_5 = function(D) {
     el.innerHTML = `
         <div class="page-title">2-5. 유발논문 영향력 분석</div>
         <div class="chart-card"><h3>유발논문 vs 한국 평균 피인용 추이</h3><p class="chart-insight">KISTI 유발논문의 평균 피인용(${D.summary.induced_avg_tc}회)은 한국 전체 평균(${D.summary.kr_avg_tc}회)보다 약 ${round2((D.summary.induced_avg_tc/Math.max(D.summary.kr_avg_tc,0.1)-1)*100,0)}% 높다. KISTI 인프라를 활용한 외부 연구자의 논문이 한국 평균을 상회하는 영향력을 보이며, 이는 인프라 지원이 연구의 질적 향상에도 기여하고 있음을 의미한다.</p><div class="chart-wrap"><canvas id="c2_5_tc"></canvas></div></div>
-        <div class="chart-card"><h3>연도별 HCP(상위1%) 논문수</h3><p class="chart-insight">유발논문 중 한국 전체 연도별 피인용 상위 1%에 해당하는 논문 수이다. 유발논문에서도 최상위 피인용 논문이 지속적으로 산출되고 있어, KISTI 인프라가 돌파적(breakthrough) 연구에도 기여하고 있음을 확인할 수 있다.</p><div class="chart-wrap"><canvas id="c2_5_hcp"></canvas></div></div>
+        <div class="chart-card"><h3>연도별 상위 1% 피인용 논문수 <span style="font-size:11px;font-weight:400;color:var(--fg2);">(자체계산 · Clarivate 공식 HCP 아님)</span></h3><p class="chart-insight">유발논문 중 한국 전체 연도별 피인용 상위 1%에 해당하는 논문 수이다. 유발논문에서도 최상위 피인용 논문이 지속적으로 산출되고 있어, KISTI 인프라가 돌파적(breakthrough) 연구에도 기여하고 있음을 확인할 수 있다.</p><div class="chart-wrap"><canvas id="c2_5_hcp"></canvas></div></div>
     `;
     const yrs = d.years.map(y => y.year);
     destroyChart('c2_5_tc');
@@ -2225,7 +2228,7 @@ renderers.sec2_5 = function(D) {
         data: { labels: yrs, datasets: [{ label: 'HCP', data: d.years.map(y => y.hcp_count), backgroundColor: COLORS.red }] },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
-    addDataTable('c2_5_hcp', ['연도','HCP 논문수','전체 논문수'],
+    addDataTable('c2_5_hcp', ['연도','상위1% 논문수','전체 논문수'],
         d.years.map(y => [y.year, num(y.hcp_count), num(y.paper_count)]));
 };
 
@@ -2282,7 +2285,7 @@ renderers.sec2_7 = function(D) {
         </div>
         <div class="chart-row">
             <div class="chart-card"><h3>MNCS — 피인용 영향력 지수</h3>
-            <p class="chart-insight"><strong>MNCS란?</strong> 각 논문의 피인용수를 "같은 분야·같은 연도의 한국 평균 피인용수"로 나눈 뒤, 그 값들의 평균을 구한 것이다. 예를 들어 물리학 2020년 한국 평균이 25회인데 어떤 논문이 50회 인용되었으면 그 논문의 점수는 50÷25 = 2.0이다. 이렇게 하면 분야나 출판연도가 달라도 공정하게 비교할 수 있다.<br><br><strong>결과:</strong> KISTI 유발논문의 MNCS는 <strong>${d.mncs}</strong>이다. 1.0이 한국 평균이므로, KISTI 인프라를 활용한 논문은 한국 평균보다 <strong>${Math.round((d.mncs - 1) * 100)}% 더 많이 인용</strong>되고 있다. 즉, KISTI 인프라는 양적 기여뿐 아니라 질적으로도 우수한 연구를 유발하고 있다.</p>
+            <p class="chart-insight"><strong>MNCS란?</strong> 각 논문의 피인용수를 "같은 분야·같은 연도·같은 문헌유형(Article/Review)의 한국 평균 피인용수"로 나눈 뒤, 그 값들의 평균을 구한 것이다. 예를 들어 물리학 2020년 Article 한국 평균이 25회인데 어떤 논문이 50회 인용되었으면 그 논문의 점수는 50÷25 = 2.0이다. 이렇게 하면 분야·출판연도·문헌유형이 달라도 공정하게 비교할 수 있다(Review는 Article보다 평균 2.8배 더 인용되므로 분리).<br><br><strong>결과:</strong> KISTI 유발논문의 MNCS는 <strong>${d.mncs}</strong>이다. 1.0이 한국 평균이므로, KISTI 인프라를 활용한 논문은 한국 평균보다 <strong>${Math.round((d.mncs - 1) * 100)}% 더 많이 인용</strong>되고 있다. 즉, KISTI 인프라는 양적 기여뿐 아니라 질적으로도 우수한 연구를 유발하고 있다.</p>
             <div class="chart-wrap"><canvas id="c2_7_mncs"></canvas></div></div>
             <div class="chart-card"><h3>MNCS 연도별 추이</h3>
             <p class="chart-insight">연도별로 MNCS가 어떻게 변했는지 보여준다. 빨간 점선(1.0)이 한국 평균이며, 이 선 위에 있으면 그 해 유발논문이 한국 평균보다 많이 인용된 것이다. 대부분의 연도에서 1.0 이상을 유지하면 인프라의 질적 기여가 꾸준하다는 뜻이다. 단, 2023-2024년은 출판된 지 얼마 안 되어 인용이 충분히 쌓이지 않았으므로 수치 변동이 클 수 있다.</p>
@@ -2296,9 +2299,9 @@ renderers.sec2_7 = function(D) {
         <table class="data-table" style="max-width:900px;margin:0 auto 20px;">
             <thead><tr><th>항목</th><th>값</th><th>비고</th></tr></thead>
             <tbody>
-                <tr><td>유발논문 수</td><td>${num(d.induced_papers)}편</td><td>2008-2024년 순수 유발논문</td></tr>
+                <tr><td>유발논문 수</td><td>${num(d.induced_papers)}편</td><td>2011-2025년 순수 유발논문</td></tr>
                 <tr><td>총 피인용수</td><td>${num(d.total_tc)}회</td><td>평균 ${d.avg_tc}회/편</td></tr>
-                <tr><td><strong>MNCS</strong></td><td><strong>${d.mncs}</strong></td><td>같은 분야·같은 연도 한국 평균=1.0 기준. ${d.mncs} = 평균보다 ${Math.round((d.mncs - 1) * 100)}% 높은 인용 (${num(d.mncs_matched)}편 대상)</td></tr>
+                <tr><td><strong>MNCS</strong></td><td><strong>${d.mncs}</strong></td><td>같은 분야·연도·문헌유형 한국 평균=1.0 기준. ${d.mncs} = 평균보다 ${Math.round((d.mncs - 1) * 100)}% 높은 인용 (${num(d.mncs_matched)}편 대상)</td></tr>
                 <tr><td>연평균 유발논문</td><td>${d.annual_induced}편/년</td><td>17년간 평균</td></tr>
                 <tr><td>논문/10억원/년</td><td>${d.budget_normalized.papers_per_10b_yr}</td><td>연간 예산 10억원당 유발논문 수</td></tr>
                 <tr><td>피인용/10억원/년</td><td>${d.budget_normalized.citations_per_10b_yr}</td><td>연간 예산 10억원당 피인용수</td></tr>
@@ -2317,11 +2320,11 @@ renderers.sec2_7 = function(D) {
         </p>
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin:16px 0;font-size:12px;color:var(--fg2);line-height:1.7;">
             <strong style="color:var(--yellow);font-size:13px;">데이터 정합성 및 분석 한계</strong><br><br>
-            <strong>기준년도 차이:</strong> 유발논문 데이터는 2008-2024년(WoS 기준)이나, 논문당 연구비 참고수치는 2022년 KISTEP 통계 기준이다. 연도별 연구비 단가 변동(인플레이션, R&D 예산 증감)이 반영되지 않았으므로, 대체가치는 규모 추정(order-of-magnitude)으로 해석해야 한다.<br><br>
+            <strong>기준년도 차이:</strong> 유발논문 데이터는 2011-2025년(WoS 기준)이나, 논문당 연구비 참고수치는 2022년 KISTEP 통계 기준이다. 연도별 연구비 단가 변동(인플레이션, R&D 예산 증감)이 반영되지 않았으므로, 대체가치는 규모 추정(order-of-magnitude)으로 해석해야 한다.<br><br>
             <strong>논문당 연구비 추정:</strong> 학술연구 기준 1.3억원은 교육부 학술연구지원 사업의 투입 대비 산출 비율(10억원당 7.62편)에서 산출된 값이다. 출연연 기준 5.0억원은 NST 소관 25개 출연연 총 R&D 지출(~12.9조원)과 전체 SCI 논문수에서 추정한 것으로, 인프라·인건비·간접비가 포함되어 순수 연구 직접비보다 높다. 실제 값은 두 추정치 사이에 위치할 가능성이 높다.<br><br>
             <strong>KISTI 인프라 예산:</strong> KSC 연간 ~300억원은 6호기 총사업비(4,483억원)를 15년 운영 기간으로 균등 배분한 추정치이다. 실제 연도별 운영비는 이와 다를 수 있으며, EDISON 등 기타 인프라 비용은 미포함이다.<br><br>
             <strong>ROI 산정 방식:</strong> 본 분석의 ROI는 '연간 유발논문 대체가치 ÷ 연간 인프라 예산'으로, 논문의 연구비 대체 효과만을 반영한다. KREONET B/C(13~21배)는 별도 경제성 분석 모형(연구망 공유에 따른 비용절감 등)으로 산출된 것이므로 직접 비교에 주의가 필요하다. XSEDE ROI(1.87~3.24배)는 연구비 유치액(aggregate research funding) 기반으로, 본 분석과 산출 기준이 다르다.<br><br>
-            <strong>유발논문 과소 집계:</strong> 2008-2018년 일부 SCIE 원시 데이터가 부재하여 해당 기간 유발논문이 과소 집계되었을 가능성이 있다. 따라서 경제적 가치도 하한(conservative) 추정으로 해석하는 것이 적절하다.
+            <strong>집계 범위:</strong> 유발논문은 2011-2025년 SCIE+SSCI+AHCI 전수를 반영한다(구 2008-2018 SCIE 공백 해소). 2025년 직접논문(소속기반)은 기관연결 원자료가 2025를 일부만 포함했으나, WoS C1(저자주소)에서 논문×기관 연결을 복원하여 정상화했다(established 국내기관 기준 정확, 미매칭 국내 신설기관 소수는 보수적 해석 권장).
         </div>
     `;
 
@@ -2460,7 +2463,7 @@ renderers.sec2_8 = function(D) {
 
         ${ocWithPapers.length > 0 ? `
         <div class="chart-card"><h3>기간 매칭 비교표</h3>
-        <p class="chart-insight">각 해외 프로그램의 운영기간과 동일한 기간의 KISTI 유발논문만 추출하여 비교한다. KISTI 전체(2008-2024)가 아닌, 비교 대상과 동일 기간의 KISTI 데이터를 사용하므로 공정한 비교가 가능하다.</p>
+        <p class="chart-insight">각 해외 프로그램의 운영기간과 동일한 기간의 KISTI 유발논문만 추출하여 비교한다. KISTI 전체(2011-2025)가 아닌, 비교 대상과 동일 기간의 KISTI 데이터를 사용하므로 공정한 비교가 가능하다.</p>
         <table class="data-table" style="max-width:1100px;margin:0 auto 20px;font-size:12px;">
             <thead><tr>
                 <th rowspan="2">비교 대상</th><th rowspan="2">겹치는 기간</th><th rowspan="2">기간(년)</th>
@@ -2893,7 +2896,7 @@ renderers.sec4_3 = function(D) {
         <div class="page-title">4-3. KBSI 논문 영향력 분석</div>
         <div class="chart-card"><h3>KBSI vs 한국 평균 피인용 추이</h3><p class="chart-insight">KBSI 논문의 평균 피인용(${D.summary.kbsi_avg_tc}회)은 한국 전체 평균(${D.summary.kr_avg_tc}회)과 유사한 수준이다. KISTI(${D.summary.kisti_avg_tc}회)와 비교하면 ${round2(D.summary.kbsi_avg_tc/Math.max(D.summary.kisti_avg_tc,0.1),1)}배 수준으로, 이는 KBSI가 대규모 공저를 통해 다수의 논문에 참여하되 개별 논문의 영향력은 상대적으로 분산되는 구조적 특성을 반영한다.</p><div class="chart-wrap"><canvas id="c4_3_tc"></canvas></div></div>
         <div class="chart-row">
-            <div class="chart-card"><h3>연도별 HCP(상위1%) 논문수</h3><p class="chart-insight">KBSI 논문 중 한국 전체 연도별 피인용 상위 1%에 해당하는 HCP 논문 수이다. 연도별 변화를 통해 KBSI의 최상위 영향력 논문 생산 추이를 확인할 수 있다.</p><div class="chart-wrap"><canvas id="c4_3_hcp"></canvas></div></div>
+            <div class="chart-card"><h3>연도별 상위 1% 피인용 논문수 <span style="font-size:11px;font-weight:400;color:var(--fg2);">(자체계산 · Clarivate 공식 HCP 아님)</span></h3><p class="chart-insight">KBSI 논문 중 한국 전체 연도별 피인용 상위 1%에 해당하는 논문 수이다(자체 기준 — Clarivate 공식 HCP와 정의 다름). 연도별 변화를 통해 KBSI의 최상위 영향력 논문 생산 추이를 확인할 수 있다.</p><div class="chart-wrap"><canvas id="c4_3_hcp"></canvas></div></div>
             <div class="chart-card"><h3>피인용 분포</h3><p class="chart-insight">KBSI 논문의 피인용 횟수 분포를 구간별로 나타낸다. KISTI와 비교하여 저인용 구간의 비중이 어떻게 다른지 확인할 수 있으며, 이를 통해 두 기관의 연구 영향력 분포 차이를 파악할 수 있다.</p><div class="chart-wrap"><canvas id="c4_3_dist"></canvas></div></div>
         </div>
     `;
@@ -2916,7 +2919,7 @@ renderers.sec4_3 = function(D) {
         data: { labels: yrs, datasets: [{ label: 'HCP', data: d.years.map(y => y.hcp_count), backgroundColor: COLORS.red }] },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
-    addDataTable('c4_3_hcp', ['연도','HCP 논문수','전체 논문수'],
+    addDataTable('c4_3_hcp', ['연도','상위1% 논문수','전체 논문수'],
         d.years.map(y => [y.year, num(y.hcp_count), num(y.paper_count)]));
 
     destroyChart('c4_3_dist');
@@ -3065,10 +3068,26 @@ renderers.sec5_1 = function(D) {
 renderers.sec5_2 = function(D) {
     const d = D.sec5_2;
     const el = document.getElementById('page-sec5_2');
+    const _c52 = d.categories || [];
+    const _t52 = _c52.reduce((s,c)=>s+(d.infra_total[c]||0),0) || 1;
+    const _dir52 = d.infra_total[_c52.find(c=>c.includes('직접'))||''] || 0;
+    const _ind52 = d.infra_total[_c52.find(c=>c.includes('간접'))||''] || 0;
     el.innerHTML = `
-        <div class="page-title">5-2. KBSI 인프라별 유발논문 분석</div>
+        <div class="page-title">5-2. KBSI 직접/간접 유발 분석</div>
+        <div class="insight-kpi-row" style="margin-bottom:14px;">
+          <div class="insight-kpi" style="border-left:3px solid #3fb950;">
+            <div class="lbl" style="color:#3fb950;">🟢 직접 유발 (공용 분석장비)</div>
+            <div class="val">${(_dir52/_t52*100).toFixed(1)}<span style="font-size:14px;color:var(--fg2);">%</span></div>
+            <div class="sub">${num(_dir52)}편 / 전체 ${num(_t52)}편</div>
+          </div>
+          <div class="insight-kpi" style="border-left:3px solid #d29922;">
+            <div class="lbl" style="color:#d29922;">🟡 간접 유발 (KBSI 명칭만)</div>
+            <div class="val">${(_ind52/_t52*100).toFixed(1)}<span style="font-size:14px;color:var(--fg2);">%</span></div>
+            <div class="sub">${num(_ind52)}편 / 전체 ${num(_t52)}편</div>
+          </div>
+        </div>
         <div class="chart-row">
-            <div class="chart-card"><h3>인프라별 비율</h3><p class="chart-insight">KBSI 유발논문은 전량이 'KBSI 분석장비 지원'으로 분류된다. KISTI가 KSC/NURION, KREONET, EDISON 등 다양한 인프라로 세분화되는 것과 대비되며, 향후 장비 유형별(NMR, TEM, XRD 등) 세분류가 이루어지면 더 정밀한 분석이 가능할 것이다.</p><div class="chart-wrap"><canvas id="c5_2_donut"></canvas></div></div>
+            <div class="chart-card"><h3>인프라별 비율</h3><p class="chart-insight">KBSI 유발논문을 <strong>4기관 공통 잣대</strong>(실제 공용 인프라·장비 사용 명시 = 🟢직접 / 기관명·펀딩만 = 🟡간접)로 구분한다. 직접 = 공용 분석장비(NMR·질량분석·전자현미경·오창/춘천센터 등) 명시. ⚠️ 장비명이 일반 명칭이라 자기 기관 장비 사용 논문이 일부 섞일 수 있어 직접 비중은 <strong>하한</strong>으로 해석.</p><div class="chart-wrap"><canvas id="c5_2_donut"></canvas></div></div>
             <div class="chart-card"><h3>인프라별 논문수</h3>
                 <table class="data-table"><thead><tr><th>인프라</th><th>논문수</th><th>비율</th></tr></thead>
                 <tbody>${Object.entries(d.infra_total).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
@@ -3190,7 +3209,7 @@ renderers.sec5_5 = function(D) {
     el.innerHTML = `
         <div class="page-title">5-5. KBSI 유발논문 영향력 분석</div>
         <div class="chart-card"><h3>유발논문 vs 한국 평균 피인용 추이</h3><p class="chart-insight">KBSI 유발논문의 평균 피인용(${D.summary.kbsi_induced_avg_tc}회)은 한국 전체 평균(${D.summary.kr_avg_tc}회)과 유사한 수준이다. KISTI 유발논문(${D.summary.induced_avg_tc}회)이 한국 평균을 ${round2((D.summary.induced_avg_tc/Math.max(D.summary.kr_avg_tc,0.1)-1)*100,0)}% 상회하는 것과 대비되며, 두 기관 인프라의 연구 영향력 파급 차이를 보여준다.</p><div class="chart-wrap"><canvas id="c5_5_tc"></canvas></div></div>
-        <div class="chart-card"><h3>연도별 HCP(상위1%) 논문수</h3><p class="chart-insight">KBSI 유발논문 중 한국 전체 연도별 피인용 상위 1%에 해당하는 HCP 논문 수이다. KISTI 유발논문의 HCP와 비교하여 최상위 영향력 논문 생산의 차이를 확인할 수 있다.</p><div class="chart-wrap"><canvas id="c5_5_hcp"></canvas></div></div>
+        <div class="chart-card"><h3>연도별 상위 1% 피인용 논문수 <span style="font-size:11px;font-weight:400;color:var(--fg2);">(자체계산 · Clarivate 공식 HCP 아님)</span></h3><p class="chart-insight">KBSI 유발논문 중 한국 전체 연도별 피인용 상위 1%에 해당하는 논문 수이다(자체 기준 — Clarivate 공식 HCP와 정의 다름). KISTI 유발논문의 상위 1%와 비교하여 최상위 영향력 논문 생산의 차이를 확인할 수 있다.</p><div class="chart-wrap"><canvas id="c5_5_hcp"></canvas></div></div>
     `;
     const yrs = d.years.map(y => y.year);
     destroyChart('c5_5_tc');
@@ -3211,7 +3230,7 @@ renderers.sec5_5 = function(D) {
         data: { labels: yrs, datasets: [{ label: 'HCP', data: d.years.map(y => y.hcp_count), backgroundColor: COLORS.red }] },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
-    addDataTable('c5_5_hcp', ['연도','HCP 논문수','전체 논문수'],
+    addDataTable('c5_5_hcp', ['연도','상위1% 논문수','전체 논문수'],
         d.years.map(y => [y.year, num(y.hcp_count), num(y.paper_count)]));
 };
 
@@ -3716,7 +3735,7 @@ renderers.sec7_3 = function(D) {
         <div class="page-title">7-3. IBS 논문 영향력 분석</div>
         <div class="chart-card"><h3>IBS vs 한국 평균 피인용 추이</h3><div class="chart-wrap"><canvas id="c7_3_tc"></canvas></div></div>
         <div class="chart-row">
-            <div class="chart-card"><h3>연도별 HCP(상위1%) 논문수</h3><div class="chart-wrap"><canvas id="c7_3_hcp"></canvas></div></div>
+            <div class="chart-card"><h3>연도별 상위 1% 피인용 논문수 <span style="font-size:11px;font-weight:400;color:var(--fg2);">(자체계산 · Clarivate 공식 HCP 아님)</span></h3><div class="chart-wrap"><canvas id="c7_3_hcp"></canvas></div></div>
             <div class="chart-card"><h3>피인용 분포</h3><div class="chart-wrap"><canvas id="c7_3_dist"></canvas></div></div>
         </div>
     `;
@@ -3738,7 +3757,7 @@ renderers.sec7_3 = function(D) {
         data: { labels: yrs, datasets: [{ label: 'HCP', data: d.years.map(y => y.hcp_count), backgroundColor: COLORS.red }] },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
-    addDataTable('c7_3_hcp', ['연도','HCP 논문수','전체 논문수'],
+    addDataTable('c7_3_hcp', ['연도','상위1% 논문수','전체 논문수'],
         d.years.map(y => [y.year, num(y.hcp_count), num(y.paper_count)]));
     destroyChart('c7_3_dist');
     charts['c7_3_dist'] = new Chart(document.getElementById('c7_3_dist'), {
@@ -3881,10 +3900,26 @@ renderers.sec8_1 = function(D) {
 renderers.sec8_2 = function(D) {
     const d = D.sec8_2;
     const el = document.getElementById('page-sec8_2');
+    const _c82 = d.categories || [];
+    const _t82 = _c82.reduce((s,c)=>s+(d.infra_total[c]||0),0) || 1;
+    const _dir82 = d.infra_total[_c82.find(c=>c.includes('직접'))||''] || 0;
+    const _ind82 = d.infra_total[_c82.find(c=>c.includes('간접'))||''] || 0;
     el.innerHTML = `
-        <div class="page-title">8-2. IBS 인프라별 유발논문 분석</div>
+        <div class="page-title">8-2. IBS 직접/간접 유발 분석</div>
+        <div class="insight-kpi-row" style="margin-bottom:14px;">
+          <div class="insight-kpi" style="border-left:3px solid #3fb950;">
+            <div class="lbl" style="color:#3fb950;">🟢 직접 유발 (RAON 등 공용시설)</div>
+            <div class="val">${(_dir82/_t82*100).toFixed(1)}<span style="font-size:14px;color:var(--fg2);">%</span></div>
+            <div class="sub">${num(_dir82)}편 / 전체 ${num(_t82)}편</div>
+          </div>
+          <div class="insight-kpi" style="border-left:3px solid #d29922;">
+            <div class="lbl" style="color:#d29922;">🟡 간접 유발 (IBS 연구비 지원)</div>
+            <div class="val">${(_ind82/_t82*100).toFixed(1)}<span style="font-size:14px;color:var(--fg2);">%</span></div>
+            <div class="sub">${num(_ind82)}편 / 전체 ${num(_t82)}편</div>
+          </div>
+        </div>
         <div class="chart-row">
-            <div class="chart-card"><h3>인프라별 비율</h3><p class="chart-insight">IBS 유발논문은 전량이 'IBS 연구센터 지원'으로 분류된다. 향후 연구센터별 세분류가 이루어지면 더 정밀한 분석이 가능할 것이다.</p><div class="chart-wrap"><canvas id="c8_2_donut"></canvas></div></div>
+            <div class="chart-card"><h3>인프라별 비율</h3><p class="chart-insight">IBS 유발논문을 <strong>4기관 공통 잣대</strong>(실제 공용 인프라·장비 사용 = 🟢직접)로 구분한다. ⚠️ <strong>IBS는 연구비 지원기관</strong>이라 공용 물리시설(RAON 중이온가속기 등) 사용 표기가 드물어 직접 비중이 매우 낮다 — 기여가 작은 게 아니라 <strong>자금 형태의 기여(연구단 과제 IBS-R###는 간접으로 분류)</strong>임을 뜻한다. (구 방식에선 과제코드를 직접 81%로 집계해 타기관 대비 과대평가됐음)</p><div class="chart-wrap"><canvas id="c8_2_donut"></canvas></div></div>
             <div class="chart-card"><h3>인프라별 논문수</h3>
                 <table class="data-table"><thead><tr><th>인프라</th><th>논문수</th><th>비율</th></tr></thead>
                 <tbody>${Object.entries(d.infra_total).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
@@ -4000,7 +4035,7 @@ renderers.sec8_5 = function(D) {
     el.innerHTML = `
         <div class="page-title">8-5. IBS 유발논문 영향력 분석</div>
         <div class="chart-card"><h3>유발논문 vs 한국 평균 피인용 추이</h3><div class="chart-wrap"><canvas id="c8_5_tc"></canvas></div></div>
-        <div class="chart-card"><h3>연도별 HCP(상위1%) 논문수</h3><div class="chart-wrap"><canvas id="c8_5_hcp"></canvas></div></div>
+        <div class="chart-card"><h3>연도별 상위 1% 피인용 논문수 <span style="font-size:11px;font-weight:400;color:var(--fg2);">(자체계산 · Clarivate 공식 HCP 아님)</span></h3><div class="chart-wrap"><canvas id="c8_5_hcp"></canvas></div></div>
     `;
     const yrs = d.years.map(y => y.year);
     destroyChart('c8_5_tc');
@@ -4020,7 +4055,7 @@ renderers.sec8_5 = function(D) {
         data: { labels: yrs, datasets: [{ label: 'HCP', data: d.years.map(y => y.hcp_count), backgroundColor: COLORS.red }] },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
-    addDataTable('c8_5_hcp', ['연도','HCP 논문수','전체 논문수'],
+    addDataTable('c8_5_hcp', ['연도','상위1% 논문수','전체 논문수'],
         d.years.map(y => [y.year, num(y.hcp_count), num(y.paper_count)]));
 };
 
@@ -4239,10 +4274,26 @@ renderers.sec10_1 = function(D) {
 renderers.sec10_2 = function(D) {
     const d = D.sec10_2;
     const el = document.getElementById('page-sec10_2');
+    const _c102 = d.categories || [];
+    const _t102 = _c102.reduce((s,c)=>s+(d.infra_total[c]||0),0) || 1;
+    const _dir102 = d.infra_total[_c102.find(c=>c.includes('직접'))||''] || 0;
+    const _ind102 = d.infra_total[_c102.find(c=>c.includes('간접'))||''] || 0;
     el.innerHTML = `
-        <div class="page-title">10-2. PAL 인프라별 유발논문 분석</div>
+        <div class="page-title">10-2. PAL 직접/간접 유발 분석</div>
+        <div class="insight-kpi-row" style="margin-bottom:14px;">
+          <div class="insight-kpi" style="border-left:3px solid #3fb950;">
+            <div class="lbl" style="color:#3fb950;">🟢 직접 유발 (빔라인·PLS-II·PAL-XFEL)</div>
+            <div class="val">${(_dir102/_t102*100).toFixed(1)}<span style="font-size:14px;color:var(--fg2);">%</span></div>
+            <div class="sub">${num(_dir102)}편 / 전체 ${num(_t102)}편</div>
+          </div>
+          <div class="insight-kpi" style="border-left:3px solid #d29922;">
+            <div class="lbl" style="color:#d29922;">🟡 간접 유발 (PAL 명칭만)</div>
+            <div class="val">${(_ind102/_t102*100).toFixed(1)}<span style="font-size:14px;color:var(--fg2);">%</span></div>
+            <div class="sub">${num(_ind102)}편 / 전체 ${num(_t102)}편</div>
+          </div>
+        </div>
         <div class="chart-row">
-            <div class="chart-card"><h3>인프라별 비율</h3><p class="chart-insight">PAL 유발논문은 전량이 'PAL 방사광 가속기 지원'으로 분류된다. 향후 빔라인별 세분류가 이루어지면 더 정밀한 분석이 가능할 것이다.</p><div class="chart-wrap"><canvas id="c10_2_donut"></canvas></div></div>
+            <div class="chart-card"><h3>인프라별 비율</h3><p class="chart-insight">PAL 유발논문을 <strong>4기관 공통 잣대</strong>(실제 공용 인프라·장비 사용 = 🟢직접)로 구분한다 — 빔라인·PLS-II·PAL-XFEL 명시 = 🟢직접, PAL 명칭만 = 🟡간접. 가속기 빔라인은 외부 이용 시 명시가 일반적이라 직접 비중이 높다.</p><div class="chart-wrap"><canvas id="c10_2_donut"></canvas></div></div>
             <div class="chart-card"><h3>인프라별 논문수</h3>
                 <table class="data-table"><thead><tr><th>인프라</th><th>논문수</th><th>비율</th></tr></thead>
                 <tbody>${Object.entries(d.infra_total).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
@@ -4358,7 +4409,7 @@ renderers.sec10_5 = function(D) {
     el.innerHTML = `
         <div class="page-title">10-5. PAL 유발논문 영향력 분석</div>
         <div class="chart-card"><h3>유발논문 vs 한국 평균 피인용 추이</h3><div class="chart-wrap"><canvas id="c10_5_tc"></canvas></div></div>
-        <div class="chart-card"><h3>연도별 HCP(상위1%) 논문수</h3><div class="chart-wrap"><canvas id="c10_5_hcp"></canvas></div></div>
+        <div class="chart-card"><h3>연도별 상위 1% 피인용 논문수 <span style="font-size:11px;font-weight:400;color:var(--fg2);">(자체계산 · Clarivate 공식 HCP 아님)</span></h3><div class="chart-wrap"><canvas id="c10_5_hcp"></canvas></div></div>
     `;
     const yrs = d.years.map(y => y.year);
     destroyChart('c10_5_tc');
@@ -4378,7 +4429,7 @@ renderers.sec10_5 = function(D) {
         data: { labels: yrs, datasets: [{ label: 'HCP', data: d.years.map(y => y.hcp_count), backgroundColor: COLORS.red }] },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
-    addDataTable('c10_5_hcp', ['연도','HCP 논문수','전체 논문수'],
+    addDataTable('c10_5_hcp', ['연도','상위1% 논문수','전체 논문수'],
         d.years.map(y => [y.year, num(y.hcp_count), num(y.paper_count)]));
 };
 
@@ -4608,11 +4659,13 @@ renderers.ins_summary = function(D) {
     const i3 = D.ins_fields || {};
 
     const i1c = i1.cumulative || {};
+    const i1cs = i1.cumulative_strong || {};   // 🟢 직접 인프라(강한연결) 누적
     const i1k = i1.key_insight || {};
     const i2s = i2.summary || {};
     const i2strength = i2.strength || {};
     const i3top = (i3.strategic_top5 || [])[0] || {};
     const i3multi = (i3.ranking || []).find(r => r.field === 'Multidisciplinary') || {};
+    const i3clin = (i3.ranking || []).find(r => r.field === 'Clinical Medicine') || {};
 
     // 핵심 배수 계산
     const top10pMult = i1k.top10p_multiplier || 0;
@@ -4745,7 +4798,7 @@ renderers.ins_summary = function(D) {
           <div style="background: rgba(63,185,80,0.08); border: 1px solid rgba(63,185,80,0.4);
                       border-radius: 8px; padding: 14px 16px;">
             <div style="color: #3fb950; font-size: 14px; font-weight: 700;">🟢 직접 인프라 기여 (하한)</div>
-            <div style="color: var(--fg); font-size: 24px; font-weight: 700; margin: 6px 0;">1,696<span style="font-size: 14px; color: var(--fg2);">편</span> / <span style="color: #3fb950;">41</span><span style="font-size: 14px; color: var(--fg2);">편 HCP</span></div>
+            <div style="color: var(--fg); font-size: 24px; font-weight: 700; margin: 6px 0;">${num(i1cs.kisti_induced || 0)}<span style="font-size: 14px; color: var(--fg2);">편</span> / <span style="color: #3fb950;">${num(i2strength.strong || 0)}</span><span style="font-size: 14px; color: var(--fg2);">편 HCP</span></div>
             <div style="color: var(--fg); font-size: 12px; line-height: 1.6;">
               FU/FX에 <strong>KSC 슈퍼컴, GSDC, KREONET 등 구체 인프라가 명시</strong>된 논문.
               KISTI 인프라가 <strong>없었다면 수행이 어려웠던 연구</strong>.
@@ -4754,7 +4807,7 @@ renderers.ins_summary = function(D) {
           <div style="background: rgba(210,153,34,0.06); border: 1px solid rgba(210,153,34,0.4);
                       border-radius: 8px; padding: 14px 16px;">
             <div style="color: #d29922; font-size: 14px; font-weight: 700;">🟢 + 🟡 전체 KISTI 연결 (상한)</div>
-            <div style="color: var(--fg); font-size: 24px; font-weight: 700; margin: 6px 0;">6,104<span style="font-size: 14px; color: var(--fg2);">편</span> / <span style="color: #d29922;">228</span><span style="font-size: 14px; color: var(--fg2);">편 HCP</span></div>
+            <div style="color: var(--fg); font-size: 24px; font-weight: 700; margin: 6px 0;">${num(i1c.kisti_induced || 0)}<span style="font-size: 14px; color: var(--fg2);">편</span> / <span style="color: #d29922;">${num(i2s.kisti_induced_hcp || 0)}</span><span style="font-size: 14px; color: var(--fg2);">편 HCP</span></div>
             <div style="color: var(--fg); font-size: 12px; line-height: 1.6;">
               위 + <strong>🟡 간접 연결</strong> (FU에 "KISTI"라는 단어만 있거나 Clarivate가 NTIS DB 참조로 자동 태깅한 논문).
               KISTI의 <strong>정보 관리 역할까지</strong> 포함된 넓은 추정.
@@ -4780,7 +4833,7 @@ renderers.ins_summary = function(D) {
         <div class="content">
           <h3>광범위 기여 — 한국 과학의 <span style="color:#f0b232;">${(i1cs.ratio_induced || 0).toFixed(2)}~${(i1c.ratio_induced || 0).toFixed(2)}%</span> 유발</h3>
           <div class="body">
-            한국 전체 SCIE 논문 955,146편 중 KISTI 연관:
+            한국 전체 논문 ${num((DATA.summary && DATA.summary.kr_total) || 0)}편 중 KISTI 연관:
             <strong style="color:#3fb950;">🟢 직접 ${num(i1cs.kisti_induced || 0)}편 (${(i1cs.ratio_induced || 0).toFixed(2)}%)</strong> ~
             <strong style="color:#d29922;">🟢+🟡 전체 ${num(i1c.kisti_induced || 0)}편 (${(i1c.ratio_induced || 0).toFixed(2)}%)</strong>.
             비중 자체는 작지만 <strong>상위권으로 갈수록 계단식으로 증가</strong>.
@@ -4872,7 +4925,7 @@ renderers.ins_summary = function(D) {
             <strong style="color:#f85149;">B: -${D.ins_counterfactual.scenario_b.kr_hcp_loss_pct}% (-${D.ins_counterfactual.scenario_b.removed_hcp}편)</strong>).
           </div>
           <div class="body" style="margin-top: 8px;">
-            특히 <strong>Multidisciplinary HCP의 15.4%가 사라짐</strong> — 한국의 <em>패러다임 전환급 연구</em>에 결정적 타격.
+            특히 <strong>Multidisciplinary HCP의 ${(i3multi.hcp_ratio||0).toFixed(1)}%가 KISTI 유발</strong> — 한국의 <em>다학제 최상위 연구</em>에 그만큼 기여.
             AlphaFold(노벨상), LIGO 중력파, Perovskite 태양전지 등이 사라지는 논문에 포함.
           </div>
           <div class="detail">
@@ -4886,7 +4939,7 @@ renderers.ins_summary = function(D) {
         <div class="label">핵심 Takeaway</div>
         <div class="text">
           KISTI 인프라는 <em>"많이"</em>가 아니라 <em>"잘"</em> 지원한다.<br>
-          전체 0.6% → 상위 10% 1.5% → HCP 3.0% → Nature급 다학제 HCP <em>15.4%</em>.<br>
+          전체 ${(i1c.ratio_induced||0).toFixed(1)}% → 상위 10% ${(i1c.ratio_top10p||0).toFixed(1)}% → HCP ${(i2s.ratio_hcp||0).toFixed(1)}% → Nature급 다학제 HCP <em>${(i3multi.hcp_ratio||0).toFixed(1)}%</em>.<br>
           <strong>위로 갈수록 기여 비중이 커지는 선택적 우수성 인프라.</strong>
         </div>
       </div>
@@ -4956,9 +5009,9 @@ renderers.ins_summary = function(D) {
         <div class="deep-card" style="border-left-color: #f0b232;">
           <div class="cat">I-1 · 계단식 증폭</div>
           <h4 style="color: #f0b232;">1. 위로 갈수록 비중 커지는 "선택적 우수성"</h4>
-          <div class="nums">0.64% → 1.54% → 1.08%</div>
+          <div class="nums">${(i1c.ratio_induced||0).toFixed(2)}% → ${(i1c.ratio_top10p||0).toFixed(2)}% → ${(i1c.ratio_q1||0).toFixed(2)}%</div>
           <div class="body">
-            전체 SCIE 중 KISTI 0.64%, <strong>상위 10%에선 1.54% (×2.41)</strong>, Q1에선 1.08% (×1.69).
+            전체 논문 중 KISTI ${(i1c.ratio_induced||0).toFixed(2)}%, <strong>상위 10%에선 ${(i1c.ratio_top10p||0).toFixed(2)}% (×${i1c.ratio_induced?(i1c.ratio_top10p/i1c.ratio_induced).toFixed(2):'-'})</strong>, Q1에선 ${(i1c.ratio_q1||0).toFixed(2)}% (×${i1c.ratio_induced?(i1c.ratio_q1/i1c.ratio_induced).toFixed(2):'-'}).
             모집단이 엄격해질수록 비중 증가 = KISTI 유발논문이 <strong>최상위권에 편중</strong>.
           </div>
           <div class="link"><a href="javascript:showPage('ins_contribution')">→ I-1 상세</a></div>
@@ -4968,7 +5021,7 @@ renderers.ins_summary = function(D) {
         <div class="deep-card" style="border-left-color: #a371f7;">
           <div class="cat">I-2 · 스타 논문</div>
           <h4 style="color: #a371f7;">2. 시대를 바꾼 논문이 KISTI 유발에 포함</h4>
-          <div class="nums">228 HCP · 12,635회 인용</div>
+          <div class="nums">${num(i2s.kisti_induced_hcp || 0)} HCP · AlphaFold 12,635회 인용</div>
           <div class="body">
             <strong>AlphaFold</strong>(Nature 2021, 12,635회, 2024 노벨 화학상),
             <strong>LIGO 중력파</strong>(PRX 2023, 🟢 GSDC),
@@ -4981,10 +5034,10 @@ renderers.ins_summary = function(D) {
         <div class="deep-card" style="border-left-color: #3fb950;">
           <div class="cat">I-2 · 이중 구조</div>
           <h4 style="color: #3fb950;">3. 직접 인프라 + 국가 DB 운영 — 두 가지 역할</h4>
-          <div class="nums">🟢 41편 직접 + 🟡 187편 간접</div>
+          <div class="nums">🟢 ${num(i2strength.strong || 0)}편 직접 + 🟡 ${num((i2s.kisti_induced_hcp || 0) - (i2strength.strong || 0))}편 간접</div>
           <div class="body">
-            HCP 228편 구성: <strong>🟢 KSC/GSDC/KREONET 인프라 직접 사용 41편</strong> +
-            <strong>🟡 NTIS DB 매핑(NRF 펀딩 자동 태깅) 187편</strong>.
+            HCP ${num(i2s.kisti_induced_hcp || 0)}편 구성: <strong>🟢 KSC/GSDC/KREONET 인프라 직접 사용 ${num(i2strength.strong || 0)}편</strong> +
+            <strong>🟡 NTIS DB 매핑(NRF 펀딩 자동 태깅) ${num((i2s.kisti_induced_hcp || 0) - (i2strength.strong || 0))}편</strong>.
             두 지표를 <strong>구간</strong>으로 해석해 정직성 확보.
           </div>
           <div class="link"><a href="javascript:showPage('ins_hcp')">→ I-2 상세</a></div>
@@ -4993,11 +5046,11 @@ renderers.ins_summary = function(D) {
         <!-- 4. Multidisciplinary 극단치 -->
         <div class="deep-card" style="border-left-color: #a371f7;">
           <div class="cat">I-3 · 분야 극단치</div>
-          <h4 style="color: #a371f7;">4. Multidisciplinary HCP 15.4% — 패러다임 전환 기반</h4>
-          <div class="nums">평균의 ×5.18배</div>
+          <h4 style="color: #a371f7;">4. Multidisciplinary HCP ${(i3multi.hcp_ratio||0).toFixed(1)}% — 분야 넘나드는 최상위 기여</h4>
+          <div class="nums">HCP 평균의 ×${(i3multi.hcp_mult||0).toFixed(2)}배</div>
           <div class="body">
-            Nature/Science/PNAS 같은 <strong>분야 넘나드는 최고 저널</strong>의 한국 HCP 중 15.4%가 KISTI 유발.
-            분야 간 협력 + 대규모 컴퓨팅 + 국제 협력이 겹치는 <strong>패러다임 전환급 연구</strong>의 기반.
+            Nature/Science/PNAS 같은 <strong>분야 넘나드는 최고 저널</strong>의 한국 HCP 중 ${(i3multi.hcp_ratio||0).toFixed(1)}%가 KISTI 유발(HCP 분야평균 ${(i3.global_hcp_avg||0).toFixed(2)}%의 ${(i3multi.hcp_mult||0).toFixed(2)}배).
+            분야 간 협력 + 대규모 컴퓨팅 + 국제 협력이 겹치는 분야에서 KISTI 기여가 두드러진다.
           </div>
           <div class="link"><a href="javascript:showPage('ins_fields')">→ I-3 상세</a></div>
         </div>
@@ -5006,9 +5059,9 @@ renderers.ins_summary = function(D) {
         <div class="deep-card" style="border-left-color: #f85149;">
           <div class="cat">I-3 · 적합·비적합</div>
           <h4 style="color: #f85149;">5. KISTI는 만능이 아니다 — 적합·비적합 분야 명확</h4>
-          <div class="nums">Clinical Medicine HCP 0.52%</div>
+          <div class="nums">Clinical Medicine HCP ${(i3clin.hcp_ratio||0).toFixed(2)}%</div>
           <div class="body">
-            한국 HCP 최대 분야 Clinical Medicine(1,533편)에서 KISTI 기여 단 8편.
+            한국 HCP 최대 분야 Clinical Medicine(${num(i3clin.kr_hcp||0)}편)에서 KISTI 기여 단 ${num(i3clin.kisti_induced_hcp||0)}편.
             의학·농업은 KISTI 비적합. <strong>"필요한 곳에 정확히 필요한 것만"</strong>의 정직한 포지셔닝이
             정책 판단의 근거가 됨.
           </div>
@@ -5133,7 +5186,7 @@ renderers.ins_contribution = function(D) {
           <strong style="color:#f0b232;">핵심 포인트:</strong>
           비중 자체보다 <em>"①에 비해 ②·③에서 비중이 몇 배 커지는가"</em>가 중요.<br>
           <span style="color: var(--fg2); font-size: 12px;">
-            예) KISTI가 전체에서 0.64%인데 상위 10%에선 1.54%라면 <strong>2.4배 집중</strong> →
+            예) KISTI가 전체에서 ${ratioOverall.toFixed(2)}%인데 상위 10%에선 ${ratioTop10p.toFixed(2)}%라면 <strong>${multTop10p.toFixed(1)}배 집중</strong> →
             "KISTI 유발논문은 상위권에 몰려있다"는 증거.
           </span>
         </div>
@@ -5199,7 +5252,7 @@ renderers.ins_contribution = function(D) {
         <h3>④ 트렌드: 최근 vs 과거</h3>
         <p class="chart-insight">
           전체 기간을 최근 5년과 초기 5년으로 나누어 비중의 변화를 비교한다.
-          수치가 증가 중이면 KISTI 인프라의 국가 기여가 강화되는 추세.
+          증가는 기여 강화를, 감소는 분모(한국 전체) 확대나 최근연도 집계 시차 등 추가 해석이 필요함을 뜻한다.
         </p>
         <div id="ins_contrib_trend_box" style="padding: 10px 0;"></div>
       </div>
@@ -5246,56 +5299,51 @@ renderers.ins_contribution = function(D) {
           </div>
         </div>
 
-        <!-- 패턴 2: 성장 궤적 -->
+        <!-- 패턴 2: 최근 vs 초기 비중 (정직한 중립 서술) -->
         ${trend.past_induced != null ? `
-        <div style="display:grid;grid-template-columns:50px 1fr;gap:14px;margin-top:14px;padding:14px;background:var(--bg2);border-radius:8px;border-left:3px solid #3fb950;">
-          <div style="font-size:28px;font-weight:700;color:#3fb950;text-align:center;">②</div>
+        <div style="display:grid;grid-template-columns:50px 1fr;gap:14px;margin-top:14px;padding:14px;background:var(--bg2);border-radius:8px;border-left:3px solid #d29922;">
+          <div style="font-size:28px;font-weight:700;color:#d29922;text-align:center;">②</div>
           <div>
-            <h4 style="color:#3fb950;font-size:14px;margin-bottom:8px;">"10여 년간 기여가 폭발적으로 성장" — 인프라 투자의 누적 효과</h4>
+            <h4 style="color:#d29922;font-size:14px;margin-bottom:8px;">최근 5년 vs 초기 5년 기여 비중 — 정점 후 조정 국면</h4>
             <p style="color:var(--fg);line-height:1.7;font-size:13px;margin-bottom:10px;">
-              KISTI 슈퍼컴·연구망이 본격 운영에 들어간 이후,
-              <strong>과거 5년 대비 최근 5년의 국가 기여도가 수백 배 증가</strong>.
-              특히 <strong>상위권에서의 증가율이 전체보다 더 가파름</strong> — 즉 질적 기여가 양적 기여보다 더 빠르게 증가.
+              초기 5년(${trend.past_period})의 국가 기여 비중이 최근 5년(${trend.recent_period})보다 <strong>오히려 높다</strong>.
+              연도별로는 <strong>2019-2020년 정점 이후 하락</strong>하는 흐름이다.
+              <span style="color:var(--fg2);">(※ 과거 일부 데이터에서 2011-2018 구간이 누락돼 '급성장'처럼 보였으나, 전체 기간을 수집해 정정한 수치다.)</span>
             </p>
             <div style="overflow-x:auto;">
               <table class="data-table" style="font-size:12px;width:100%;">
                 <thead><tr>
                   <th>기준</th>
-                  <th style="text-align:right;">과거 (${trend.past_period})</th>
+                  <th style="text-align:right;">초기 (${trend.past_period})</th>
                   <th style="text-align:right;">최근 (${trend.recent_period})</th>
-                  <th style="text-align:right;">증가 배수</th>
+                  <th style="text-align:right;">최근/초기 배수</th>
                 </tr></thead>
                 <tbody>
-                  <tr>
-                    <td>한국 전체 중 비중</td>
-                    <td style="text-align:right;color:var(--fg2);">${trend.past_induced.toFixed(3)}%</td>
-                    <td style="text-align:right;color:#3fb950;font-weight:600;">${trend.recent_induced.toFixed(3)}%</td>
-                    <td style="text-align:right;color:#3fb950;font-weight:600;">×${(trend.recent_induced / (trend.past_induced || 0.001)).toFixed(0)}</td>
-                  </tr>
-                  <tr>
-                    <td>상위 10% 중 비중</td>
-                    <td style="text-align:right;color:var(--fg2);">${trend.past_top10p.toFixed(3)}%</td>
-                    <td style="text-align:right;color:#3fb950;font-weight:600;">${trend.recent_top10p.toFixed(3)}%</td>
-                    <td style="text-align:right;color:#3fb950;font-weight:600;">×${(trend.recent_top10p / (trend.past_top10p || 0.001)).toFixed(0)}</td>
-                  </tr>
-                  <tr>
-                    <td>Q1 저널 중 비중</td>
-                    <td style="text-align:right;color:var(--fg2);">${trend.past_q1.toFixed(3)}%</td>
-                    <td style="text-align:right;color:#3fb950;font-weight:600;">${trend.recent_q1.toFixed(3)}%</td>
-                    <td style="text-align:right;color:#3fb950;font-weight:600;">×${(trend.recent_q1 / (trend.past_q1 || 0.001)).toFixed(0)}</td>
-                  </tr>
+                  ${[
+                    ['한국 전체 중 비중', trend.past_induced, trend.recent_induced],
+                    ['상위 10% 중 비중', trend.past_top10p, trend.recent_top10p],
+                    ['Q1 저널 중 비중', trend.past_q1, trend.recent_q1],
+                  ].map(row => {
+                    const label = row[0], past = row[1], recent = row[2];
+                    const r = (past != null && past > 0 && recent != null) ? recent / past : null;
+                    const col = (r == null) ? 'var(--fg2)' : (r >= 1 ? '#3fb950' : '#f85149');
+                    const dir = (r == null) ? '' : (r >= 1 ? ' ↑' : ' ↓');
+                    return `<tr>
+                      <td>${label}</td>
+                      <td style="text-align:right;color:var(--fg2);">${past != null ? past.toFixed(3) + '%' : '—'}</td>
+                      <td style="text-align:right;color:var(--fg);">${recent != null ? recent.toFixed(3) + '%' : '—'}</td>
+                      <td style="text-align:right;color:${col};font-weight:600;">${r == null ? '—' : '×' + r.toFixed(2) + dir}</td>
+                    </tr>`;
+                  }).join('')}
                 </tbody>
               </table>
             </div>
             <div style="margin-top:10px;padding:8px 12px;background:var(--bg);border-radius:4px;font-size:12px;color:var(--fg);line-height:1.7;">
-              💡 <strong>정책 시사점</strong>:
-              "인프라 투자가 시간 지연을 두고 누적되어 성과로 이어진다"는 증거.
-              KSC 5호기 누리온(2018), KREONET 고도화(2019-2020) 이후 성과가 가시화.
-              <strong>향후 투자도 10년 단위 누적 효과를 기대할 수 있음</strong>.
+              💡 <strong>해석</strong>:
+              같은 기간 한국 전체 논문이 약 1.5배 늘어(분모 확대) 비중은 더 낮아졌다. 다만 <strong>절대 규모는 연 700~2,300편 수준으로 전 기간에 걸쳐 꾸준</strong>하다.
               <br>
               <span style="color:var(--fg2);font-size:11px;margin-top:4px;display:inline-block;">
-                ⚠ 주의: 2008-2018 SCIE 원시데이터 부재로 과거 비중이 과소 집계됐을 가능성 → "수백 배"는 상한선.
-                실제 증가율은 더 보수적으로 해석해야 함 (그래도 수십 배 수준은 확실).
+                ⚠ 주의: 최근연도(2022-2025)의 급락(2021→2022 약 −52%)은 실제 감소라기보다 <strong>사사표기(FU/FX) 수집 시차</strong>로 인한 과소집계 가능성이 크다. 최근연도 수치는 잠정으로 해석할 것.
               </span>
             </div>
           </div>
@@ -5594,7 +5642,7 @@ renderers.ins_hcp = function(D) {
       <div class="chart-card" style="border-left: 3px solid #3fb950;">
         <h3>🎯 KISTI 인프라 "연결 강도" 분류 — 정직한 해석</h3>
         <p class="chart-insight">
-          HCP 228편 모두가 동일한 방식으로 KISTI에 연결된 것은 아니다. 사사표기(FU/FX) 분석 결과, 크게 두 그룹:
+          HCP ${num(sumKisHcp)}편 모두가 동일한 방식으로 KISTI에 연결된 것은 아니다. 사사표기(FU/FX) 분석 결과, 크게 두 그룹:
           <br><br>
           <strong style="color:#3fb950;">🟢 강한 연결 (${strongTotal}편, ${strongPct.toFixed(1)}%)</strong> —
           KSC 슈퍼컴, NURION, KREONET 연구망, KISTI-GSDC 데이터 허브 등 <strong>구체 인프라가 사사표기에 명시</strong>된 논문. 실제 자원 사용.
@@ -5777,7 +5825,7 @@ renderers.ins_hcp = function(D) {
       <div class="chart-card" style="border-left: 3px solid #f0b232; background: linear-gradient(180deg, rgba(240,178,50,0.04), transparent);">
         <h3>🔍 심화 인사이트 — HCP 기여의 구조적 의미 3가지</h3>
         <p class="chart-insight">
-          HCP 228편 숫자 뒤에 숨은 3가지 구조적 패턴.
+          HCP ${num(sumKisHcp)}편 숫자 뒤에 숨은 3가지 구조적 패턴.
         </p>
 
         <!-- 패턴 1: 이중 역할 구조 -->
@@ -5786,7 +5834,7 @@ renderers.ins_hcp = function(D) {
           <div>
             <h4 style="color:#3fb950;font-size:14px;margin-bottom:8px;">"KISTI는 두 가지 역할을 동시에 한다" — 직접 인프라 + 정보 관문</h4>
             <p style="color:var(--fg);line-height:1.7;font-size:13px;margin-bottom:10px;">
-              HCP 228편은 동질적 집단이 아니라 <strong>두 종류의 KISTI 역할</strong>이 공존한다. 이 이중 구조를 명확히 구분해 해석하는 것이 <strong>분석의 정직성과 신뢰도</strong>를 결정한다.
+              HCP ${num(sumKisHcp)}편은 동질적 집단이 아니라 <strong>두 종류의 KISTI 역할</strong>이 공존한다. 이 이중 구조를 명확히 구분해 해석하는 것이 <strong>분석의 정직성과 신뢰도</strong>를 결정한다.
             </p>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
               <div style="padding:14px;background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.4);border-radius:6px;">
@@ -5848,7 +5896,7 @@ renderers.ins_hcp = function(D) {
             </div>
             <div style="margin-top:10px;padding:8px 12px;background:var(--bg);border-radius:4px;font-size:12px;color:var(--fg);line-height:1.7;">
               💡 <strong>정책 시사점</strong>:
-              추상적 수치(예: 228편) 대신 <strong>"구체 논문명"</strong>을 제시할 때 KISTI 기여의 성격이 명확히 드러난다.
+              추상적 수치(예: ${num(sumKisHcp)}편) 대신 <strong>"구체 논문명"</strong>을 제시할 때 KISTI 기여의 성격이 명확히 드러난다.
               AlphaFold(노벨상), LIGO 중력파, 차세대 태양광 등 <strong>시대를 바꾼 연구가 포함됐다</strong>는 사실은
               🟢🟡 연결 강도 구분과 함께 제시되어야 정확한 해석이 된다.
             </div>
@@ -6083,6 +6131,10 @@ renderers.ins_fields = function(D) {
     const heatmap = d.heatmap || {};
     const globalAvg = d.global_avg || 0;
     const globalHcpAvg = d.global_hcp_avg || 0;
+    const fMulti = ranking.find(r => r.field === 'Multidisciplinary') || {};
+    const fClin = ranking.find(r => r.field === 'Clinical Medicine') || {};
+    const fPhys = ranking.find(r => r.field === 'Physics') || {};
+    const fBio = ranking.find(r => r.field === 'Biology & Biochemistry') || {};
 
     // 히트맵 색상 (비중 % → 색상 강도)
     function heatColor(ratio) {
@@ -6144,7 +6196,7 @@ renderers.ins_fields = function(D) {
               각 분야에서 <strong>"한국 전체 논문 중 KISTI 유발논문이 몇 %인가"</strong>를 계산한다.<br>
               <span style="color: var(--fg2); font-size: 12px;">
                 ※ KISTI 전체 평균 비중은 <strong>${globalAvg.toFixed(2)}%</strong>.
-                어떤 분야가 3%면 평균의 <strong>4.5배 의존적</strong>이라는 뜻.
+                어떤 분야의 비중이 그 2배(<strong>${(globalAvg * 2).toFixed(2)}%</strong>)면 KISTI 의존도가 평균의 2배라는 뜻.
               </span>
             </li>
             <li>
@@ -6210,26 +6262,26 @@ renderers.ins_fields = function(D) {
                 </tr>
                 <tr>
                   <td>Physics</td>
-                  <td style="text-align:right;">×2.26</td>
-                  <td style="text-align:right;">×2.04</td>
-                  <td style="text-align:right;color:#f0b232;font-weight:600;">2.04 ✅</td>
+                  <td style="text-align:right;">×${(fPhys.overall_mult||0).toFixed(2)}</td>
+                  <td style="text-align:right;">×${(fPhys.hcp_mult||0).toFixed(2)}</td>
+                  <td style="text-align:right;color:#f0b232;font-weight:600;">${Math.min(fPhys.overall_mult||0, fPhys.hcp_mult||0).toFixed(2)} ✅</td>
                 </tr>
                 <tr>
                   <td>Multidisciplinary</td>
-                  <td style="text-align:right;">×1.44</td>
-                  <td style="text-align:right;">×5.18</td>
-                  <td style="text-align:right;color:var(--fg);font-weight:600;">1.44</td>
+                  <td style="text-align:right;">×${(fMulti.overall_mult||0).toFixed(2)}</td>
+                  <td style="text-align:right;">×${(fMulti.hcp_mult||0).toFixed(2)}</td>
+                  <td style="text-align:right;color:var(--fg);font-weight:600;">${Math.min(fMulti.overall_mult||0, fMulti.hcp_mult||0).toFixed(2)}</td>
                 </tr>
                 <tr>
                   <td>Biology &amp; Biochem</td>
-                  <td style="text-align:right;">×0.62</td>
-                  <td style="text-align:right;">×1.37</td>
-                  <td style="text-align:right;color:var(--fg2);">0.62</td>
+                  <td style="text-align:right;">×${(fBio.overall_mult||0).toFixed(2)}</td>
+                  <td style="text-align:right;">×${(fBio.hcp_mult||0).toFixed(2)}</td>
+                  <td style="text-align:right;color:var(--fg2);">${Math.min(fBio.overall_mult||0, fBio.hcp_mult||0).toFixed(2)}</td>
                 </tr>
               </tbody>
             </table>
             <div style="color:var(--fg2); font-size:12px; margin-top: 8px; line-height: 1.7;">
-              Multidisciplinary는 HCP 배수가 ×5.18로 극단적이지만 일반 배수는 ×1.44로 평이.
+              Multidisciplinary는 HCP 배수가 ×${(fMulti.hcp_mult||0).toFixed(2)}로 일반 배수 ×${(fMulti.overall_mult||0).toFixed(2)}보다 큼.
               min을 쓰면 <strong>"강한 쪽의 과장 방지"</strong> 효과.
             </div>
           </div>
@@ -6399,7 +6451,7 @@ renderers.ins_fields = function(D) {
                 <li>대규모 데이터·컴퓨팅 자원 필요 → KSC·GSDC 활용 개연성 높음</li>
                 <li>국제 공동연구 비중 큼 → KREONET 필수</li>
               </ul>
-              즉 "KISTI 인프라 3요소가 모두 필요한 연구"가 Multidisciplinary에 몰리고, 그래서 HCP 비중 15.4%라는 극단치 발생.
+              즉 "KISTI 인프라 3요소가 모두 필요한 연구"가 Multidisciplinary에 몰리고, 그래서 HCP 비중 ${(fMulti.hcp_ratio||0).toFixed(1)}%(분야평균의 ×${(fMulti.hcp_mult||0).toFixed(2)})로 높음.
             </div>
             <div style="margin-top:10px;padding:8px 12px;background:var(--bg);border-radius:4px;font-size:12px;color:var(--fg);line-height:1.7;">
               💡 <strong>정책 시사점</strong>:
@@ -6455,8 +6507,8 @@ renderers.ins_fields = function(D) {
           <div>
             <h4 style="color:#f85149;font-size:14px;margin-bottom:8px;">"Clinical Medicine 대조" — KISTI 무관 분야가 주는 반증적 교훈</h4>
             <p style="color:var(--fg);line-height:1.7;font-size:13px;margin-bottom:10px;">
-              한국 논문 중 가장 많은 <strong>Clinical Medicine</strong>(155,674편, 16.3%)에서 KISTI 비중은 평균 이하.
-              HCP 기준으로도 1,533편 중 단 <strong>8편(0.52%)</strong>만 KISTI 유발.
+              한국 논문 중 가장 많은 <strong>Clinical Medicine</strong>(${num(fClin.kr_total||0)}편)에서 KISTI 비중은 평균 이하(${(fClin.overall_ratio||0).toFixed(2)}%).
+              HCP 기준으로도 ${num(fClin.kr_hcp||0)}편 중 단 <strong>${num(fClin.kisti_induced_hcp||0)}편(${(fClin.hcp_ratio||0).toFixed(2)}%)</strong>만 KISTI 유발.
               이것은 실패가 아니라 <strong>"KISTI 인프라의 적합 영역과 비적합 영역의 명확한 구분"</strong>을 보여줌.
             </p>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -6495,7 +6547,7 @@ renderers.ins_fields = function(D) {
           <strong>Space Science, Physics, Materials Science</strong>는 KISTI 슈퍼컴과 GSDC의 직접 수혜 분야.
           이들 분야는 KISTI 인프라 축소 시 연구 경쟁력이 급감할 위험이 큼.
           <strong>Multidisciplinary</strong>는 HCP 의존도가 극단적으로 높아, KISTI가 "국가 최상위 연구"의 기반 인프라임을 시사.
-          반면 <strong>Clinical Medicine</strong>(HCP 1533편 중 8편, 0.52%)은 KISTI와 낮은 연결 — 이 분야는 별도 지원 체계 필요.
+          반면 <strong>Clinical Medicine</strong>(HCP ${num(fClin.kr_hcp||0)}편 중 ${num(fClin.kisti_induced_hcp||0)}편, ${(fClin.hcp_ratio||0).toFixed(2)}%)은 KISTI와 낮은 연결 — 이 분야는 별도 지원 체계 필요.
         </span>
       </div>
     `;
@@ -7006,6 +7058,10 @@ renderers.ins_counterfactual = function(D) {
     const a = d.scenario_a;
     const b = d.scenario_b;
     const fi = d.field_impact || [];
+    const ciMulti = fi.find(r => r.field === 'Multidisciplinary') || {};
+    const ciSpace = fi.find(r => r.field === 'Space Science') || {};
+    const ciPhys = fi.find(r => r.field === 'Physics') || {};
+    const lpRange = (e) => (e && e.loss_pct_a != null) ? `${e.loss_pct_a}-${e.loss_pct_b}%` : '—';
     const lostA = d.lost_papers_strong || [];
     const lostB = d.lost_papers_medium || [];
 
@@ -7146,22 +7202,21 @@ renderers.ins_counterfactual = function(D) {
             </div>
             <div style="margin-top:10px;padding:8px 12px;background:var(--bg);border-radius:4px;font-size:12px;color:var(--fg);line-height:1.7;">
               💡 <strong>정책 시사점</strong>:
-              "KISTI가 없으면 한국 HCP가 0.54%~2.97% 감소"라는 <strong>명확한 정량 구간</strong>으로 표현.
+              "KISTI가 없으면 한국 HCP가 ${a.kr_hcp_loss_pct}%~${b.kr_hcp_loss_pct}% 감소"라는 <strong>명확한 정량 구간</strong>으로 표현.
               이는 <strong>"KISTI 인프라 예산 1원 = 한국 HCP 몇 편"</strong>의 근거가 되는 수치.
             </div>
           </div>
         </div>
 
-        <!-- 패턴 2: Multidisciplinary 15.4% 공백 -->
-        ${fi[0] && fi[0].field === 'MULTIDISCIPLINARY' ? `
+        <!-- 패턴 2: Multidisciplinary HCP 공백 (동적) -->
+        ${ciMulti.field ? `
         <div style="display:grid;grid-template-columns:50px 1fr;gap:14px;margin-top:14px;padding:14px;background:var(--bg2);border-radius:8px;border-left:3px solid #a371f7;">
           <div style="font-size:28px;font-weight:700;color:#a371f7;text-align:center;">②</div>
           <div>
-            <h4 style="color:#a371f7;font-size:14px;margin-bottom:8px;">"Multidisciplinary 분야에서 한국 HCP 15.4% 공백" — 최대 타격</h4>
+            <h4 style="color:#a371f7;font-size:14px;margin-bottom:8px;">"Multidisciplinary 분야에서 한국 HCP ${(ciMulti.loss_pct_b||0).toFixed(1)}% 공백"</h4>
             <p style="color:var(--fg);line-height:1.7;font-size:13px;margin-bottom:10px;">
-              KISTI 부재 시 <strong>Nature/Science/PNAS 같은 다학제 최고 저널 한국 HCP의 15.4%가 사라짐</strong>.
-              현재 13편 중 2편만 남음.
-              다른 분야의 일반적 감소폭(A: 1-6%)과 비교해 <strong>3-10배 극단적</strong>.
+              KISTI 부재 시 <strong>Nature/Science/PNAS 같은 다학제 최고 저널 한국 HCP의 ${(ciMulti.loss_pct_b||0).toFixed(1)}%가 사라짐</strong>
+              (한국 다학제 HCP ${num(ciMulti.kr_hcp||0)}편 중 ${num(ciMulti.kisti_hcp_total||0)}편이 KISTI 유발 → 제거 시 ${num(ciMulti.new_hcp_b||0)}편 잔존).
             </p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">
               ${fi.slice(0, 5).map(f => `
@@ -7234,9 +7289,9 @@ renderers.ins_counterfactual = function(D) {
       <div style="background:var(--bg2);border:1px solid var(--bg3);border-left:3px solid #f85149;padding:14px 18px;border-radius:6px;margin-top:14px;">
         <strong style="color:#f85149">🎯 종합 해석</strong>
         <div style="color:var(--fg);font-size:14px;line-height:1.8;margin-top:10px;padding:10px 14px;background:var(--bg);border-radius:6px;border-left:2px solid #f0b232;">
-          KISTI 인프라가 없었다면 한국 과학은 <strong>Clarivate HCP 기준 최소 41편~최대 226편</strong>의 상위 1% 논문을 잃었을 것이다.
-          이는 한국 HCP 전체의 <strong>0.54%~2.97%</strong>에 해당하며, 특히
-          <strong>Multidisciplinary 15.4%, Space Science 5.7-7.3%, Physics 2.4-6.1%</strong> 같은
+          KISTI 인프라가 없었다면 한국 과학은 <strong>Clarivate HCP 기준 최소 ${num(a.removed_hcp)}편~최대 ${num(b.removed_hcp)}편</strong>의 상위 1% 논문을 잃었을 것이다.
+          이는 한국 HCP 전체의 <strong>${a.kr_hcp_loss_pct}%~${b.kr_hcp_loss_pct}%</strong>에 해당하며, 특히
+          <strong>Multidisciplinary ${lpRange(ciMulti)}, Space Science ${lpRange(ciSpace)}, Physics ${lpRange(ciPhys)}</strong> 같은
           <strong style="color:#f0b232;">전략 분야의 큰 공백</strong>으로 나타난다.
           사라지는 논문에는 AlphaFold(노벨상), LIGO 중력파, Perovskite 태양전지 등 <strong>시대를 바꾼 연구</strong>가 포함된다.
           즉 KISTI 인프라는 <strong>"한국이 세계 과학 최전선에 참여하기 위한 필수 기반"</strong>이며,
@@ -7305,6 +7360,524 @@ renderers.ins_counterfactual = function(D) {
         }).join('') +
         '</tbody>';
 };
+
+// ═══════════════════════════════════════════════════════════
+// I-6. 분야별 질적 비교 (4기관)
+// ═══════════════════════════════════════════════════════════
+// I-6 분야별 질적 비교 — 화면 상태 (focal 기관 / 전체 매트릭스 지표·정렬 / 시계열 분야 / WC254 필터)
+let FQ_STATE = { focal: 'KISTI', metric: 'mncs', sortKey: 'KISTI', sortAsc: false, tsField: null,
+                 wcMinN: 10, wcSearch: '', wcSortKey: null, wcSortAsc: false };
+const FQ_METRICS = [
+    { key: 'mncs',       label: 'MNCS',    digits: 3, suffix: ''  },
+    { key: 'top10p_pct', label: '상위10%', digits: 2, suffix: '%' },
+    { key: 'hcp_pct',    label: 'HCP%',    digits: 2, suffix: '%' },
+];
+const FQ_MIN_N = 30;
+
+renderers.ins_field_quality = function(D) {
+    const d = D.ins_field_quality;
+    const el = document.getElementById('page-ins_field_quality');
+    if (!d) {
+        el.innerHTML = '<div style="padding:40px;color:var(--fg2)">분야별 질적 비교 데이터가 없습니다. compute.py 재실행 필요.</div>';
+        return;
+    }
+    const insts = d.institutions;        // ["KISTI","KBSI","IBS","PAL"]
+    const matrix = d.matrix;             // {field: {inst: stats}}
+    const overall = d.overall || {};
+    const topVol = d.top_volume_fields || [];
+    const bestFld = d.best_field_by_inst || {};
+
+    // focal 기관 (state, 유효성 보정) — KISTI 외 임의 기관 중심으로 우위분야 재도출
+    const focal = insts.includes(FQ_STATE.focal) ? FQ_STATE.focal : insts[0];
+    const metricDef = FQ_METRICS.find(m => m.key === FQ_STATE.metric) || FQ_METRICS[0];
+
+    // focal 기관이 타 기관 모두를 앞서는 분야(표본 30편+), 지표별 — 동적 계산
+    function focalBest(key) {
+        const out = [];
+        (d.fields || []).forEach(f => {
+            const cells = matrix[f], fc = cells[focal];
+            if (!fc || fc.n < FQ_MIN_N || fc[key] == null) return;
+            let win = true, second = -Infinity, secondInst = null;
+            insts.forEach(o => {
+                if (o === focal) return;
+                const oc = cells[o];
+                if (oc && oc[key] != null) {
+                    if (oc.n >= FQ_MIN_N && oc[key] >= fc[key]) win = false;
+                    if (oc[key] > second) { second = oc[key]; secondInst = o; }
+                }
+            });
+            if (win) out.push({
+                field: f, val: fc[key], n: fc.n,
+                gap: second > -Infinity ? fc[key] - second : null, gapInst: secondInst,
+                others: insts.filter(o => o !== focal).map(o => ({ inst: o, v: cells[o][key], n: cells[o].n })),
+            });
+        });
+        out.sort((a, b) => b.val - a.val);
+        return out;
+    }
+    const best = { by_mncs: focalBest('mncs'), by_top10p: focalBest('top10p_pct'), by_hcp: focalBest('hcp_pct') };
+
+    const INST_COLOR = {
+        KISTI: '#f0b232',
+        KBSI:  '#58a6ff',
+        IBS:   '#3fb950',
+        PAL:   '#bc8cff',
+    };
+    function fmt(v, digits) {
+        if (v === null || v === undefined) return '<span style="color:var(--fg3)">—</span>';
+        if (typeof v === 'number') return v.toFixed(digits == null ? 2 : digits);
+        return v;
+    }
+    function bestCellMncs(field) {
+        const row = matrix[field];
+        let bestInst = null, bestV = -Infinity;
+        insts.forEach(i => {
+            const v = row[i].mncs;
+            if (v != null && row[i].n >= 30 && v > bestV) { bestV = v; bestInst = i; }
+        });
+        return bestInst;
+    }
+    function bestCellKey(field, key, minN) {
+        const row = matrix[field];
+        let bestInst = null, bestV = -Infinity;
+        insts.forEach(i => {
+            const v = row[i][key];
+            if (v != null && row[i].n >= (minN || 30) && v > bestV) { bestV = v; bestInst = i; }
+        });
+        return bestInst;
+    }
+
+    // 그룹 1: 4기관 전체 요약 카드
+    const overallCards = insts.map(i => {
+        const o = overall[i] || {};
+        return `
+          <div class="insight-kpi" style="border-left:3px solid ${INST_COLOR[i]};">
+            <div class="lbl" style="color:${INST_COLOR[i]};">${i} 유발논문</div>
+            <div class="val" style="font-size:20px;">${num(o.n||0)}<span style="font-size:12px;color:var(--fg2);">편</span></div>
+            <div class="sub">
+              MNCS <strong style="color:var(--fg);">${fmt(o.mncs, 3)}</strong>
+              · 평균TC <strong>${fmt(o.avg_tc, 1)}</strong><br>
+              상위10% <strong>${fmt(o.top10p_pct, 2)}%</strong>
+              · HCP <strong>${fmt(o.hcp_pct, 2)}%</strong> (${num(o.hcp_n||0)}편)
+            </div>
+          </div>`;
+    }).join('');
+
+    // 그룹 2: KISTI 우위 분야 자동 도출 (3가지 지표)
+    function bestList(items, fmtFn) {
+        if (!items || !items.length) return `<tr><td colspan="5" style="color:var(--fg2);font-size:12px;">표본 ${FQ_MIN_N}편 이상 + 타 기관 모두 대비 우위 분야 없음</td></tr>`;
+        return items.slice(0, 10).map(r => {
+            const cmp = (r.others || []).map(o =>
+                `<span style="color:${INST_COLOR[o.inst]};">${o.inst} ${o.v==null?'—':fmtFn(o.v)}</span>`
+            ).join(' / ');
+            const gapTxt = (r.gap == null) ? '<span style="color:var(--fg3)">—</span>'
+                : `<span style="color:#3fb950;font-weight:600;">+${fmtFn(r.gap)}</span>`;
+            return `<tr>
+              <td>${r.field}</td>
+              <td style="text-align:right;color:${INST_COLOR[focal]};font-weight:700;">${fmtFn(r.val)}</td>
+              <td style="font-size:11px;color:var(--fg2);">${cmp}</td>
+              <td style="text-align:right;">${gapTxt}</td>
+              <td style="text-align:right;color:var(--fg2);">${num(r.n)}편</td>
+            </tr>`;
+        }).join('');
+    }
+
+    // 전체 22분야 정렬 매트릭스 — 지표(metricDef) 기준, 정렬(FQ_STATE), Δ·1위 포함
+    function buildSortableMatrix() {
+        const mk = metricDef.key, dg = metricDef.digits, sfx = metricDef.suffix;
+        let rows = (d.fields || []).map(f => {
+            const cells = matrix[f];
+            let bestInst = null, bestV = -Infinity, secondV = -Infinity;
+            insts.forEach(i => {
+                const c = cells[i], v = c ? c[mk] : null;
+                if (v != null && c.n >= FQ_MIN_N) {
+                    if (v > bestV) { secondV = bestV; bestV = v; bestInst = i; }
+                    else if (v > secondV) { secondV = v; }
+                }
+            });
+            const gap = (bestV > -Infinity && secondV > -Infinity) ? bestV - secondV : null;
+            return { field: f, cells, bestInst, gap };
+        });
+        const sk = FQ_STATE.sortKey, asc = FQ_STATE.sortAsc;
+        rows.sort((a, b) => {
+            if (sk === 'field') return asc ? a.field.localeCompare(b.field) : b.field.localeCompare(a.field);
+            let av, bv;
+            if (sk === 'gap') { av = a.gap == null ? -Infinity : a.gap; bv = b.gap == null ? -Infinity : b.gap; }
+            else {
+                const ac = a.cells[sk], bc = b.cells[sk];
+                av = (ac && ac.n >= FQ_MIN_N && ac[mk] != null) ? ac[mk] : -Infinity;
+                bv = (bc && bc.n >= FQ_MIN_N && bc[mk] != null) ? bc[mk] : -Infinity;
+            }
+            return asc ? av - bv : bv - av;
+        });
+        const arrow = k => FQ_STATE.sortKey === k ? (FQ_STATE.sortAsc ? ' ▲' : ' ▼') : '';
+        const head = `<tr>
+            <th style="cursor:pointer;" onclick="fqSort('field')">분야${arrow('field')}</th>
+            ${insts.map(i => `<th style="text-align:right;cursor:pointer;color:${INST_COLOR[i]};${i===focal?'text-decoration:underline;':''}" onclick="fqSort('${i}')">${i}${arrow(i)}</th>`).join('')}
+            <th style="text-align:center;">1위</th>
+            <th style="text-align:right;cursor:pointer;" onclick="fqSort('gap')">우위격차 Δ${arrow('gap')}</th>
+          </tr>`;
+        const body = rows.map(r => `<tr>
+            <td>${r.field}</td>
+            ${insts.map(i => {
+                const c = r.cells[i], v = c ? c[mk] : null;
+                const ok = (v != null && c.n >= FQ_MIN_N);
+                const hl = (i === r.bestInst) ? `background:rgba(240,178,50,0.15);font-weight:700;color:${INST_COLOR[i]};` : '';
+                const fcb = (i === focal) ? 'border-left:2px solid ' + INST_COLOR[focal] + ';' : '';
+                return `<td style="text-align:right;${hl}${fcb}">${ok ? v.toFixed(dg) + sfx : '<span style="color:var(--fg3)">—</span>'}<span style="color:var(--fg3);font-size:10px;"> (${num(c ? c.n : 0)})</span></td>`;
+            }).join('')}
+            <td style="text-align:center;color:${r.bestInst?INST_COLOR[r.bestInst]:'var(--fg2)'};font-weight:600;">${r.bestInst || '—'}</td>
+            <td style="text-align:right;color:#3fb950;">${r.gap == null ? '—' : '+' + r.gap.toFixed(dg) + sfx}</td>
+          </tr>`).join('');
+        return `<table class="data-table" style="font-size:12px;"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+    }
+
+    // WoS 254 세부분야 드릴다운 매트릭스 (표본필터·검색·정렬, focal 인식)
+    function buildWc254() {
+        const wc = d.wc254;
+        if (!wc || !wc.categories || !wc.categories.length)
+            return '<div style="color:var(--fg2);font-size:12px;padding:12px;">WC254 데이터 없음 (compute.py 재실행 필요).</div>';
+        const mk = metricDef.key, dg = metricDef.digits, sfx = metricDef.suffix;
+        const minN = FQ_STATE.wcMinN, q = (FQ_STATE.wcSearch || '').toLowerCase();
+        const sk = FQ_STATE.wcSortKey || focal, asc = FQ_STATE.wcSortAsc;
+        let rows = wc.categories.map(cat => {
+            const cells = wc.matrix[cat];
+            let bestInst = null, bestV = -Infinity, secondV = -Infinity, maxN = 0;
+            insts.forEach(i => {
+                const c = cells[i];
+                if (c) {
+                    if (c.n > maxN) maxN = c.n;
+                    const v = c[mk];
+                    if (v != null && c.n >= minN) {
+                        if (v > bestV) { secondV = bestV; bestV = v; bestInst = i; }
+                        else if (v > secondV) secondV = v;
+                    }
+                }
+            });
+            const gap = (bestV > -Infinity && secondV > -Infinity) ? bestV - secondV : null;
+            return { cat, cells, bestInst, gap, maxN };
+        }).filter(r => r.maxN >= minN && (!q || r.cat.toLowerCase().includes(q)));
+        rows.sort((a, b) => {
+            if (sk === 'cat') return asc ? a.cat.localeCompare(b.cat) : b.cat.localeCompare(a.cat);
+            if (sk === 'gap') { const av = a.gap == null ? -Infinity : a.gap, bv = b.gap == null ? -Infinity : b.gap; return asc ? av - bv : bv - av; }
+            const ac = a.cells[sk], bc = b.cells[sk];
+            const av = (ac && ac.n >= minN && ac[mk] != null) ? ac[mk] : -Infinity;
+            const bv = (bc && bc.n >= minN && bc[mk] != null) ? bc[mk] : -Infinity;
+            return asc ? av - bv : bv - av;
+        });
+        const total = rows.length;
+        rows = rows.slice(0, 60);
+        const arrow = k => FQ_STATE.wcSortKey === k ? (FQ_STATE.wcSortAsc ? ' ▲' : ' ▼') : '';
+        const head = `<tr>
+            <th style="cursor:pointer;" onclick="fqWcSort('cat')">WoS 세부분야${arrow('cat')}</th>
+            ${insts.map(i => `<th style="text-align:right;cursor:pointer;color:${INST_COLOR[i]};${i===focal?'text-decoration:underline;':''}" onclick="fqWcSort('${i}')">${i}${arrow(i)}</th>`).join('')}
+            <th style="text-align:center;">1위</th>
+            <th style="text-align:right;cursor:pointer;" onclick="fqWcSort('gap')">Δ${arrow('gap')}</th>
+          </tr>`;
+        const body = rows.map(r => `<tr>
+            <td>${r.cat}</td>
+            ${insts.map(i => {
+                const c = r.cells[i], v = c ? c[mk] : null, ok = (v != null && c.n >= minN);
+                const hl = (i === r.bestInst) ? `background:rgba(240,178,50,0.15);font-weight:700;color:${INST_COLOR[i]};` : '';
+                const fcb = (i === focal) ? 'border-left:2px solid ' + INST_COLOR[focal] + ';' : '';
+                return `<td style="text-align:right;${hl}${fcb}">${ok ? v.toFixed(dg) + sfx : '<span style="color:var(--fg3)">—</span>'}<span style="color:var(--fg3);font-size:10px;"> (${num(c ? c.n : 0)})</span></td>`;
+            }).join('')}
+            <td style="text-align:center;color:${r.bestInst?INST_COLOR[r.bestInst]:'var(--fg2)'};font-weight:600;">${r.bestInst || '—'}</td>
+            <td style="text-align:right;color:#3fb950;">${r.gap == null ? '—' : '+' + r.gap.toFixed(dg) + sfx}</td>
+          </tr>`).join('');
+        const note = total > 60 ? `<div style="font-size:11px;color:var(--fg3);margin-top:6px;">상위 60개 표시 (필터 결과 ${total}개). 검색·표본 필터로 좁히세요.</div>` : `<div style="font-size:11px;color:var(--fg3);margin-top:6px;">${total}개 세부분야 (표본 ${minN}편 이상).</div>`;
+        return `<table class="data-table" style="font-size:12px;"><thead>${head}</thead><tbody>${body}</tbody></table>${note}`;
+    }
+
+    // 그룹 3: 분야별 4기관 매트릭스 (Top 8 활발 분야)
+    function buildMatrixTable(metricKey, label, digits) {
+        return `
+          <table class="data-table" style="font-size:12px;">
+            <thead><tr>
+              <th>분야 (KISTI 논문수 Top 8)</th>
+              ${insts.map(i => `<th style="text-align:right;color:${INST_COLOR[i]};">${i}</th>`).join('')}
+              <th>1위</th>
+            </tr></thead>
+            <tbody>
+            ${topVol.map(f => {
+                const row = matrix[f];
+                const bi = bestCellKey(f, metricKey, 30);
+                return `<tr>
+                  <td>${f}</td>
+                  ${insts.map(i => {
+                      const v = row[i][metricKey];
+                      const n = row[i].n;
+                      const hl = (i === bi) ? `background:rgba(240,178,50,0.15);font-weight:700;color:${INST_COLOR[i]};` : '';
+                      return `<td style="text-align:right;${hl}">
+                        ${v==null?'—':v.toFixed(digits)}
+                        <span style="color:var(--fg3);font-size:10px;">(${num(n)})</span>
+                      </td>`;
+                  }).join('')}
+                  <td style="color:${bi?INST_COLOR[bi]:'var(--fg2)'};font-weight:600;">${bi||'—'}</td>
+                </tr>`;
+            }).join('')}
+            </tbody>
+          </table>`;
+    }
+
+    // 분야 분포 (모든 22분야, MNCS 매트릭스 — 색상 히트맵)
+    function heatBg(v, max) {
+        if (v == null) return 'background: rgba(60,60,80,0.2);color:var(--fg3);';
+        const r = Math.min(v / max, 1);
+        const a = 0.15 + r * 0.7;
+        return `background: rgba(240,178,50,${a.toFixed(2)});color:${r>0.5?'#0d1117':'var(--fg)'};font-weight:${r>0.4?700:500};`;
+    }
+    const allFields = d.fields || [];
+    const mncsMax = Math.max(...allFields.flatMap(f => insts.map(i => matrix[f][i].mncs || 0))) || 1;
+
+    // ── 시계열(연도 추이) 준비 ──
+    const tsYears = d.years || [];
+    const hasTs = !!d.timeseries;
+    // 기본 분야: focal 논문수 최다 분야
+    let tsField = FQ_STATE.tsField;
+    if (!hasTs || !d.timeseries[tsField]) {
+        const cand = allFields.filter(f => matrix[f][focal] && matrix[f][focal].n >= FQ_MIN_N)
+                              .sort((a, b) => matrix[b][focal].n - matrix[a][focal].n);
+        tsField = cand[0] || allFields[0];
+    }
+    const tsFieldOptions = allFields.map(f =>
+        `<option value="${f}"${f === tsField ? ' selected' : ''}>${f} (${focal} ${num(matrix[f][focal] ? matrix[f][focal].n : 0)}편)</option>`
+    ).join('');
+
+    el.innerHTML = `
+      <div class="insight-header">
+        <h2>💡 I-6. 분야별 질적 비교 — 기관 특화 분야 도출</h2>
+        <div class="why" style="line-height:1.8;">
+          <strong style="color:#f0b232;">이 분석이 답하려는 질문:</strong>
+          "<strong style="color:${INST_COLOR[focal]};">${focal}</strong> 유발논문은 <strong>어느 연구 분야에서 다른 인프라 기관보다 질적으로 우수한가?</strong>"
+          아래 <strong>중심 기관</strong>을 바꾸면 해당 기관 기준으로 우위 분야가 재도출됩니다.
+          <br><br>
+          <strong style="color:#f0b232;">사용 지표</strong> — 모두 한국 동분야·동연도 기준 정규화:
+          <ul style="margin:6px 0 0 22px;font-size:13px;line-height:1.9;">
+            <li><strong>MNCS</strong>: <strong>각 논문</strong>의 (피인용 ÷ 그 논문의 <strong>동분야·동연도·동일 문헌유형(Article/Review)</strong> 한국 평균TC)를 구한 뒤 <strong>그 값들을 평균</strong>(비의 평균). 1.0 = 한국 평균, 2.0 = 두 배 영향력. <span style="color:var(--fg3);">문헌유형 정규화 적용(표준 CNCI/FWCI 방식). 단 분모는 한국 평균(글로벌 아님).</span></li>
+            <li><strong>상위10% 비율</strong>: 한국 동분야·동연도 상위10% 피인용 임계값 이상 논문 비율(%).</li>
+            <li><strong>HCP 비율</strong>: Clarivate HCP(피인용 상위 1%) 매칭 논문 비율(%).</li>
+            <li>표본 <strong>${FQ_MIN_N}편 미만 분야</strong>는 비교 대상에서 제외 (통계적 안정성).</li>
+          </ul>
+          <br>
+          <span style="color:var(--fg2);font-size:12px;">
+            ※ KISTI/KBSI/IBS/PAL 모두 <em>유발논문(사사표기 기반)</em> 기준. 직접논문(소속 기반)은 제외.
+            PAL은 직접논문 분리 불가(POSTECH 하위)로 유발논문만 보유.
+          </span>
+        </div>
+      </div>
+
+      <!-- 중심 기관 선택 토글 -->
+      <div class="chart-card" style="padding:12px 16px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+        <span style="font-size:12px;color:var(--fg2);margin-right:8px;">🎯 중심 기관:</span>
+        ${insts.map(i => `<button onclick="fqFocal('${i}')" style="padding:6px 16px;border-radius:6px;border:1px solid ${i===focal?INST_COLOR[i]:'var(--bg3)'};background:${i===focal?INST_COLOR[i]:'transparent'};color:${i===focal?'#0d1117':INST_COLOR[i]};font-weight:${i===focal?700:500};cursor:pointer;">${i}</button>`).join('')}
+        <span style="font-size:11px;color:var(--fg3);margin-left:8px;">선택 기관 열에 <span style="border-left:2px solid ${INST_COLOR[focal]};padding-left:4px;">테두리</span> 표시</span>
+      </div>
+
+      <!-- 4기관 전체 요약 -->
+      <div class="insight-kpi-row">${overallCards}</div>
+
+      <!-- 기관별 최강 분야 (MNCS 1위) -->
+      <div class="chart-card" style="border-left:3px solid #f0b232;">
+        <h3>🏆 기관별 MNCS 1위 분야 (표본 30편 이상)</h3>
+        <p class="chart-insight">각 기관이 한국 평균 대비 가장 강한 인용 영향력을 보이는 분야.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:8px;">
+          ${insts.map(i => {
+              const b = bestFld[i];
+              return `<div style="background:var(--bg2);border:1px solid var(--bg3);border-radius:8px;padding:14px;">
+                <div style="color:${INST_COLOR[i]};font-size:13px;font-weight:700;">${i}</div>
+                ${b ? `
+                  <div style="font-size:14px;color:var(--fg);margin:8px 0;font-weight:600;">${b.field}</div>
+                  <div style="font-size:11px;color:var(--fg2);">
+                    MNCS <strong style="color:var(--fg);">${fmt(b.mncs,3)}</strong> · ${num(b.n)}편
+                  </div>`
+                  : `<div style="color:var(--fg2);font-size:12px;margin-top:8px;">표본 부족</div>`}
+              </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- focal 우위 분야 (3개 지표) -->
+      <div class="chart-card" style="border-left:3px solid ${INST_COLOR[focal]};">
+        <h3>⭐ <span style="color:${INST_COLOR[focal]};">${focal}</span>가 타 3기관 모두를 앞서는 분야</h3>
+        <p class="chart-insight">표본 ${FQ_MIN_N}편 이상 + 다른 3기관 대비 우위. <strong>Δ</strong>는 2위 기관과의 격차. <strong>지표별로 다른 분야가 도출</strong>되면 ${focal}의 질적 강점을 다각도로 보여준다.</p>
+
+        <div style="display:grid;grid-template-columns:1fr;gap:14px;margin-top:8px;">
+          <div>
+            <div style="color:${INST_COLOR[focal]};font-size:13px;font-weight:600;margin-bottom:6px;">① MNCS 우위 분야 (${(best.by_mncs||[]).length}개)</div>
+            <div class="table-scroll"><table class="data-table" style="font-size:12px;">
+              <thead><tr><th>분야</th><th style="text-align:right;">${focal} MNCS</th><th>타 기관</th><th style="text-align:right;">Δ</th><th style="text-align:right;">논문수</th></tr></thead>
+              <tbody>${bestList(best.by_mncs, v => v.toFixed(3))}</tbody>
+            </table></div>
+          </div>
+
+          <div>
+            <div style="color:${INST_COLOR[focal]};font-size:13px;font-weight:600;margin-bottom:6px;">② 상위10% 비율 우위 분야 (${(best.by_top10p||[]).length}개)</div>
+            <div class="table-scroll"><table class="data-table" style="font-size:12px;">
+              <thead><tr><th>분야</th><th style="text-align:right;">${focal} Top10%</th><th>타 기관</th><th style="text-align:right;">Δ</th><th style="text-align:right;">논문수</th></tr></thead>
+              <tbody>${bestList(best.by_top10p, v => v.toFixed(2)+'%')}</tbody>
+            </table></div>
+          </div>
+
+          <div>
+            <div style="color:${INST_COLOR[focal]};font-size:13px;font-weight:600;margin-bottom:6px;">③ HCP 비율 우위 분야 (${(best.by_hcp||[]).length}개)</div>
+            <div class="table-scroll"><table class="data-table" style="font-size:12px;">
+              <thead><tr><th>분야</th><th style="text-align:right;">${focal} HCP%</th><th>타 기관</th><th style="text-align:right;">Δ</th><th style="text-align:right;">논문수</th></tr></thead>
+              <tbody>${bestList(best.by_hcp, v => v.toFixed(2)+'%')}</tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 전체 22분야 정렬 매트릭스 -->
+      <div class="chart-card">
+        <h3>📊 전체 22분야 × 4기관 정렬 매트릭스</h3>
+        <p class="chart-insight">
+          지표 버튼으로 전환, 열 머리글 클릭으로 정렬. 각 행 1위 셀은 <span style="background:rgba(240,178,50,0.2);padding:1px 4px;border-radius:3px;">하이라이트</span>,
+          중심 기관(<span style="color:${INST_COLOR[focal]};">${focal}</span>) 열은 테두리. 괄호 안은 분야 논문 수, <strong>Δ</strong>는 1·2위 격차.
+        </p>
+        <div style="margin:10px 0;display:flex;gap:6px;flex-wrap:wrap;">
+          ${FQ_METRICS.map(m => `<button onclick="fqMetric('${m.key}')" style="padding:5px 14px;border-radius:6px;border:1px solid ${m.key===metricDef.key?'#f0b232':'var(--bg3)'};background:${m.key===metricDef.key?'rgba(240,178,50,0.18)':'transparent'};color:${m.key===metricDef.key?'#f0b232':'var(--fg2)'};font-weight:${m.key===metricDef.key?700:500};cursor:pointer;">${m.label}</button>`).join('')}
+        </div>
+        <div class="table-scroll">${buildSortableMatrix()}</div>
+      </div>
+
+      <!-- 분야별 연도 추이 (시계열) -->
+      <div class="chart-card">
+        <h3>📈 분야별 연도 추이 — ${metricDef.label}</h3>
+        <p class="chart-insight">선택 분야의 ${metricDef.label}를 4기관 연도별로 비교. 위 <strong>지표 버튼</strong>으로 MNCS/상위10%/HCP 전환. 특정 연도 표본이 적으면(특히 PAL·소분야) 변동이 크니 표본수 함께 해석.</p>
+        <div style="margin:10px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:12px;color:var(--fg2);">분야 선택:</span>
+          <select onchange="fqTsField(this.value)" style="padding:6px 10px;border-radius:6px;background:var(--bg2);color:var(--fg);border:1px solid var(--bg3);font-size:12px;max-width:340px;">
+            ${hasTs ? tsFieldOptions : '<option>시계열 데이터 없음 (compute.py 재실행 필요)</option>'}
+          </select>
+        </div>
+        <div style="position:relative;height:340px;"><canvas id="fq-ts-chart"></canvas></div>
+      </div>
+
+      <!-- WoS 254 세부분야 드릴다운 -->
+      <div class="chart-card">
+        <h3>🔬 WoS 254 세부분야 드릴다운 — ${metricDef.label}</h3>
+        <p class="chart-insight">
+          ESI 22분야보다 세밀한 <strong>WoS 세부분야(WC)</strong> 단위 비교. 위 <strong>지표 버튼</strong>으로 전환, 열 머리글 클릭 정렬.
+          1위 셀 <span style="background:rgba(240,178,50,0.2);padding:1px 4px;border-radius:3px;">하이라이트</span>,
+          중심 기관(<span style="color:${INST_COLOR[focal]};">${focal}</span>) 열 테두리. 표본 적은 세부분야는 변동이 크니 최소 표본 필터 활용.
+        </p>
+        <div style="margin:10px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:12px;color:var(--fg2);">최소 표본:</span>
+          ${[5,10,20,30].map(n => `<button onclick="fqWcMinN(${n})" style="padding:4px 10px;border-radius:5px;border:1px solid ${FQ_STATE.wcMinN===n?'#f0b232':'var(--bg3)'};background:${FQ_STATE.wcMinN===n?'rgba(240,178,50,0.18)':'transparent'};color:${FQ_STATE.wcMinN===n?'#f0b232':'var(--fg2)'};cursor:pointer;font-size:12px;">${n}편</button>`).join('')}
+          <input type="text" placeholder="세부분야 검색 후 Enter…" value="${FQ_STATE.wcSearch||''}" onchange="fqWcSearch(this.value)" style="padding:6px 10px;border-radius:6px;background:var(--bg2);color:var(--fg);border:1px solid var(--bg3);font-size:12px;min-width:200px;">
+        </div>
+        <div class="table-scroll">${buildWc254()}</div>
+      </div>
+
+      <!-- 22분야 × 4기관 MNCS 히트맵 -->
+      <div class="chart-card">
+        <h3>🔥 전체 22분야 × 4기관 MNCS 히트맵</h3>
+        <p class="chart-insight">색이 진할수록 한국 평균 대비 영향력이 높음. 표본 30편 미만은 회색(—).</p>
+        <div class="table-scroll" style="margin-top:8px;">
+          <table class="data-table" style="font-size:11px;">
+            <thead><tr>
+              <th>분야</th>
+              ${insts.map(i => `<th style="text-align:center;color:${INST_COLOR[i]};">${i}</th>`).join('')}
+            </tr></thead>
+            <tbody>
+              ${allFields.map(f => {
+                  const row = matrix[f];
+                  return `<tr>
+                    <td>${f}</td>
+                    ${insts.map(i => {
+                        const s = row[i];
+                        const showMncs = (s.n >= 30 && s.mncs != null);
+                        const cellStyle = showMncs ? heatBg(s.mncs, mncsMax) : 'background:rgba(60,60,80,0.15);color:var(--fg3);';
+                        return `<td style="text-align:center;${cellStyle}">
+                          ${showMncs ? s.mncs.toFixed(3) : '—'}
+                          <div style="font-size:9px;opacity:0.7;">${num(s.n)}편</div>
+                        </td>`;
+                    }).join('')}
+                  </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px;padding:10px;background:var(--bg2);border-radius:4px;font-size:12px;color:var(--fg2);line-height:1.7;">
+          <strong style="color:#f0b232;">💡 해석 팁:</strong> 같은 분야에서 한 기관만 진한 색이면 <em>그 기관의 분야 특화</em>를 의미.
+          여러 기관이 모두 진하면 <em>해당 분야 자체가 인프라 의존도 높음</em>. KISTI 셀이 진한 분야가 KISTI의 질적 강점.
+        </div>
+      </div>
+    `;
+
+    // 시계열 라인차트 인스턴스화 (재렌더마다 destroy 후 재생성)
+    if (charts['fq-ts-chart']) { charts['fq-ts-chart'].destroy(); delete charts['fq-ts-chart']; }
+    if (hasTs && d.timeseries[tsField]) {
+        const tsM = metricDef.key;
+        const tsObj = d.timeseries[tsField];
+        const dsets = insts.map(i => ({
+            label: i,
+            data: (tsObj[i] && tsObj[i][tsM]) ? tsObj[i][tsM] : [],
+            borderColor: INST_COLOR[i],
+            backgroundColor: INST_COLOR[i],
+            spanGaps: true, tension: 0.3, pointRadius: 2, borderWidth: 2,
+        }));
+        const cv = document.getElementById('fq-ts-chart');
+        if (cv) charts['fq-ts-chart'] = new Chart(cv, {
+            type: 'line',
+            data: { labels: tsYears, datasets: dsets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { labels: { color: '#c9d1d9' } },
+                    datalabels: { display: false },
+                    tooltip: { callbacks: { afterBody: function(items) {
+                        if (!items.length) return '';
+                        const yi = items[0].dataIndex;
+                        return '표본 — ' + insts.map(i => i + ' ' + ((tsObj[i] && tsObj[i].n) ? tsObj[i].n[yi] : 0) + '편').join(' / ');
+                    } } },
+                },
+                scales: {
+                    x: { ticks: { color: '#8b949e' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { ticks: { color: '#8b949e' }, grid: { color: 'rgba(255,255,255,0.05)' },
+                         title: { display: true, text: metricDef.label, color: '#8b949e' } },
+                },
+            },
+        });
+    }
+};
+
+// I-6 인터랙션 핸들러 — 상태 갱신 후 재렌더 (showPage의 rendered 플래그 우회)
+function fqFocal(inst) {
+    FQ_STATE.focal = inst;
+    FQ_STATE.sortKey = inst;   // 중심 기관 기준으로 매트릭스 정렬
+    FQ_STATE.sortAsc = false;
+    renderers.ins_field_quality(DATA);
+}
+function fqMetric(key) {
+    FQ_STATE.metric = key;
+    renderers.ins_field_quality(DATA);
+}
+function fqTsField(f) {
+    FQ_STATE.tsField = f;
+    renderers.ins_field_quality(DATA);
+}
+function fqWcSort(key) {
+    if (FQ_STATE.wcSortKey === key) FQ_STATE.wcSortAsc = !FQ_STATE.wcSortAsc;
+    else { FQ_STATE.wcSortKey = key; FQ_STATE.wcSortAsc = (key === 'cat'); }
+    renderers.ins_field_quality(DATA);
+}
+function fqWcMinN(n) {
+    FQ_STATE.wcMinN = n;
+    renderers.ins_field_quality(DATA);
+}
+function fqWcSearch(v) {
+    FQ_STATE.wcSearch = v;
+    renderers.ins_field_quality(DATA);
+}
+function fqSort(key) {
+    if (FQ_STATE.sortKey === key) FQ_STATE.sortAsc = !FQ_STATE.sortAsc;
+    else { FQ_STATE.sortKey = key; FQ_STATE.sortAsc = (key === 'field'); }
+    renderers.ins_field_quality(DATA);
+}
 
 // ═══════════════════════════════════════════════════════════
 // Paper Management
@@ -8640,21 +9213,28 @@ function recomputeAllStats(startYear, endYear) {
     }
     function _calcFtop10p(papers) {
         const top10p = KOREA.top10p_by_year_field || {};
+        const topDt = KOREA.top10p_by_year_field_dt || {};   // 분야×연도×문헌유형
         let top=0, valid=0;
         papers.forEach(p => {
             const f = p.std_field; if (!f) return;
+            const dtc = (p.dtc === 'R') ? 'Review' : 'Article';
+            let thr = (((topDt[String(p.PY)]||{})[f]||{})[dtc]);
+            if (thr === undefined || thr === null) thr = ((top10p[String(p.PY)]||{})[f]);  // 폴백
+            if (thr === undefined || thr === null) thr = Infinity;
             valid++;
-            const thr = ((top10p[String(p.PY)]||{})[f]) ?? Infinity;
             if ((p.TC||0) >= thr && (p.TC||0) > 0) top++;
         });
         return round2(top/Math.max(valid,1)*100, 1);
     }
     function _calcMNCS(papers) {
         const avgTcYF = KOREA.avg_tc_by_year_field || {};
+        const avgDt = KOREA.avg_tc_by_year_field_dt || {};   // 분야×연도×문헌유형
         let totalNCS=0, valid=0;
         papers.forEach(p => {
             const f = p.std_field; if (!f) return;
-            const krAvg = ((avgTcYF[String(p.PY)]||{})[f]) || 0;
+            const dtc = (p.dtc === 'R') ? 'Review' : 'Article';
+            let krAvg = (((avgDt[String(p.PY)]||{})[f]||{})[dtc]) || 0;
+            if (krAvg <= 0) krAvg = ((avgTcYF[String(p.PY)]||{})[f]) || 0;  // 폴백
             if (krAvg <= 0) return;
             valid++; totalNCS += (p.TC||0) / krAvg;
         });

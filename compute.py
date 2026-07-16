@@ -24,9 +24,9 @@ DEFAULT_OUT = Path(__file__).parent / "data_cache.json"
 # ═══════════════════════════════════════════════════════════
 @dataclass
 class RunConfig:
-    data_version: str = "2024"
-    start_year: int = 2008
-    end_year: int = 2024
+    data_version: str = "2025"
+    start_year: int = 2011
+    end_year: int = 2025
     base_path: Path = field(default_factory=lambda: DEFAULT_BASE)
     snapshot: Optional[str] = None
     output: Path = field(default_factory=lambda: DEFAULT_OUT)
@@ -45,8 +45,16 @@ class RunConfig:
 
 
 def resolve_file(filename: str, config: RunConfig) -> Path:
-    """파일 경로 해석 — 우선순위: snapshot → generated/{version}/ → generated/master/ → 루트"""
-    candidates = []
+    """파일 경로 해석 — 우선순위: 프로젝트 로컬(data_{version}/, 프로젝트 루트)
+    → snapshot → generated/{version}/ → generated/master/ → KISTEP 루트.
+
+    2026 현행화: 재생성한 산출물(유발논문 JSON 등)은 이 프로젝트의 data_{version}/ 에
+    저장하므로 KISTEP 구버전보다 우선 인식된다. 거대 pickle은 프로젝트에 없어 자연히 폴백."""
+    project = Path(__file__).resolve().parent
+    candidates = [
+        project / f"data_{config.data_version}" / filename,
+        project / filename,
+    ]
     if config.snapshot:
         candidates.append(config.base_path / "generated" / config.data_version
                           / "snapshots" / config.snapshot / filename)
@@ -153,8 +161,8 @@ def parse_args() -> Optional[RunConfig]:
     """CLI 인자 파싱. 인자 없으면 None (인터랙티브 모드 진입)."""
     parser = argparse.ArgumentParser(description="KISTI Policy 분석 데이터 생성")
     parser.add_argument("--version", type=str, help="데이터 버전 (예: 2024, 2025)")
-    parser.add_argument("--start-year", type=int, default=2008, help="분석 시작 연도 (기본: 2008)")
-    parser.add_argument("--end-year", type=int, default=2024, help="분석 종료 연도 (기본: 2024)")
+    parser.add_argument("--start-year", type=int, default=2011, help="분석 시작 연도 (기본: 2011)")
+    parser.add_argument("--end-year", type=int, default=2025, help="분석 종료 연도 (기본: 2025)")
     parser.add_argument("--snapshot", type=str, default=None, help="스냅샷 ID (예: 20260306_081605)")
     parser.add_argument("--base", type=str, default=str(DEFAULT_BASE), help="KISTEP 루트 경로")
     parser.add_argument("--output", type=str, default=str(DEFAULT_OUT), help="출력 파일 경로")
@@ -322,6 +330,47 @@ def _wos_is_article(r):
     return "Early Access" not in dt
 
 
+# 문헌유형 2분류 — MNCS/상위10% 정규화 시 Review(과인용)를 별도 베이스라인으로 분리
+# (표준 CNCI/FWCI는 분야×연도×문헌유형으로 정규화). Review 평균TC는 Article의 ~2.8배.
+DT_MIN_SAMPLE = 10  # dt 셀 표본 < 이 값이면 문헌유형 미분리(분야×연도) 베이스라인으로 폴백
+
+
+def _dt_class(r):
+    return "Review" if "Review" in (r.get("DT") or "") else "Article"
+
+
+def _exp_tc(avg_field, avg_field_dt, py, f, dtc):
+    """기대 피인용(MNCS 분모): 분야×연도×문헌유형 셀 → 없으면 분야×연도로 폴백."""
+    if avg_field_dt:
+        cell = (avg_field_dt.get(py, {}).get(f, {}) or {}).get(dtc)
+        if cell:
+            return cell
+    return (avg_field or {}).get(py, {}).get(f, 0)
+
+
+def _thr_top10p(top_field, top_field_dt, py, f, dtc):
+    """상위10% 임계값: 분야×연도×문헌유형 셀 → 없으면 분야×연도로 폴백."""
+    if top_field_dt:
+        cell = (top_field_dt.get(py, {}).get(f, {}) or {}).get(dtc)
+        if cell is not None:
+            return cell
+    return (top_field or {}).get(py, {}).get(f)
+
+
+def _annotate_norm(records, avg_field, avg_field_dt, top_field, top_field_dt):
+    """레코드에 dt 정규화 기대값(_exp_tc)·상위10% 임계값(_thr)을 1회 주석 — 모든 소비처 공유."""
+    for r in records:
+        py = r.get("PY")
+        f = r.get("std_field")
+        if not isinstance(py, int) or not f:
+            r["_exp_tc"] = None
+            r["_thr"] = None
+            continue
+        dtc = _dt_class(r)
+        r["_exp_tc"] = _exp_tc(avg_field, avg_field_dt, py, f, dtc)
+        r["_thr"] = _thr_top10p(top_field, top_field_dt, py, f, dtc)
+
+
 def classify_infra(keywords_list):
     """Classify a paper's KISTI infrastructure from its keyword list."""
     kws = " ".join(keywords_list).upper()
@@ -411,14 +460,15 @@ def load_data(config: RunConfig):
     pal_induced_papers = json.loads(pal_induced_path.read_text(encoding="utf-8"))
     print(f"  PAL 유발논문 JSON: {len(pal_induced_papers):,}건")
 
-    # Clarivate HCP 인덱스 로딩 (있으면)
-    hcp_path = config.base_path / "hcp_index.json"
+    # HCP 인덱스 로딩 — 프로젝트 로컬(HC 필드 기반, data_{version}/) 우선 → KISTEP 폴백
+    project_hcp = Path(__file__).resolve().parent / f"data_{config.data_version}" / "hcp_index.json"
+    hcp_path = project_hcp if project_hcp.exists() else (config.base_path / "hcp_index.json")
     hcp_index = None
     if hcp_path.exists():
         hcp_index = json.loads(hcp_path.read_text(encoding="utf-8"))
-        print(f"  Clarivate HCP 인덱스: {hcp_index.get('total', 0):,}편")
+        print(f"  HCP 인덱스: {hcp_index.get('total', 0):,}편 (출처: {hcp_index.get('source', '?')})")
     else:
-        print(f"  ⚠ HCP 인덱스 없음 (scan_hcp_index.py 실행 필요): {hcp_path}")
+        print(f"  ⚠ HCP 인덱스 없음 (scan_hcp_from_hc.py 실행 필요): {hcp_path}")
 
     # 출연연 학위별 인력 CSV 로딩
     gri_csv_path = Path(__file__).parent / "rawdata" / "국가과학기술연구회 소관 출연연 학위별 인력 정보(정규인력 전체)_20211231.csv"
@@ -666,6 +716,7 @@ def compute_korea_stats(wos_data, config: RunConfig):
     kr_by_field = defaultdict(int)
     kr_tc_list_by_year = defaultdict(list)
     kr_tc_by_year_field = defaultdict(lambda: defaultdict(list))  # year → field → [tc...]
+    kr_tc_by_year_field_dt = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # year → field → dt → [tc]
     kr_count = 0
 
     for r in wos_data:
@@ -683,6 +734,7 @@ def compute_korea_stats(wos_data, config: RunConfig):
         if f:
             kr_by_field[f] += 1
             kr_tc_by_year_field[py][f].append(tc)
+            kr_tc_by_year_field_dt[py][f][_dt_class(r)].append(tc)
 
     # 연도별 상위 10% TC 임계값
     kr_top10p_by_year = {}
@@ -707,11 +759,81 @@ def compute_korea_stats(wos_data, config: RunConfig):
         for f, tcs in fields.items():
             kr_avg_tc_by_year_field[y][f] = sum(tcs) / len(tcs) if tcs else 0
 
+    # 연도×분야×문헌유형별 평균TC·상위10% (dt 정규화용; 표본 DT_MIN_SAMPLE 미만 셀은 제외→폴백)
+    kr_avg_tc_by_year_field_dt = {}
+    kr_top10p_by_year_field_dt = {}
+    for y, fields in kr_tc_by_year_field_dt.items():
+        kr_avg_tc_by_year_field_dt[y] = {}
+        kr_top10p_by_year_field_dt[y] = {}
+        for f, dts in fields.items():
+            for dc, tcs in dts.items():
+                if len(tcs) < DT_MIN_SAMPLE:
+                    continue
+                kr_avg_tc_by_year_field_dt[y].setdefault(f, {})[dc] = sum(tcs) / len(tcs)
+                st = sorted(tcs, reverse=True)
+                idx = max(1, int(len(st) * 0.10))
+                kr_top10p_by_year_field_dt[y].setdefault(f, {})[dc] = st[idx - 1]
+
     print(f"  한국 전체 논문 수: {kr_count:,}")
     print(f"  상위 10% TC 임계값({config.end_year}): {kr_top10p_by_year.get(config.end_year, 'N/A')}")
     return (dict(kr_by_year), dict(kr_tc_by_year), dict(kr_by_field),
             kr_count, kr_top10p_by_year, kr_top10p_by_year_field,
-            kr_avg_tc_by_year_field)
+            kr_avg_tc_by_year_field, kr_avg_tc_by_year_field_dt,
+            kr_top10p_by_year_field_dt)
+
+
+def compute_korea_wc_stats(wos_data, config: RunConfig):
+    """한국 전체 WoS 254 세부분야(WC)별 연도 베이스라인 — WC254 드릴다운의 MNCS/상위10% 분모용.
+
+    WC는 ';' 구분 다중 카테고리(논문 절반이 복수). 각 카테고리에 full counting으로 집계.
+    반환: (avg, top10p, avg_dt, top10p_dt) — dt 버전은 {year:{wc:{dt:값}}}, 표본 미만 셀 제외.
+    """
+    print("\n=== 한국 WoS 254 세부분야 베이스라인 ===")
+    tc_by_year_wc = defaultdict(lambda: defaultdict(list))
+    tc_by_year_wc_dt = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for r in wos_data:
+        if not _wos_is_article(r):
+            continue
+        py = r.get("PY", 0)
+        if not isinstance(py, int) or py < config.start_year or py > config.end_year:
+            continue
+        tc = r.get("TC", 0) or 0
+        dtc = _dt_class(r)
+        for cat in (r.get("WC") or "").split(";"):
+            cat = cat.strip()
+            if cat:
+                tc_by_year_wc[py][cat].append(tc)
+                tc_by_year_wc_dt[py][cat][dtc].append(tc)
+
+    kr_avg_tc_by_year_wc = {}
+    kr_top10p_by_year_wc = {}
+    for y, cats in tc_by_year_wc.items():
+        kr_avg_tc_by_year_wc[y] = {}
+        kr_top10p_by_year_wc[y] = {}
+        for cat, tcs in cats.items():
+            kr_avg_tc_by_year_wc[y][cat] = sum(tcs) / len(tcs) if tcs else 0
+            st = sorted(tcs, reverse=True)
+            idx = max(1, int(len(st) * 0.10))
+            kr_top10p_by_year_wc[y][cat] = st[idx - 1] if st else 0
+
+    kr_avg_tc_by_year_wc_dt = {}
+    kr_top10p_by_year_wc_dt = {}
+    for y, cats in tc_by_year_wc_dt.items():
+        kr_avg_tc_by_year_wc_dt[y] = {}
+        kr_top10p_by_year_wc_dt[y] = {}
+        for cat, dts in cats.items():
+            for dc, tcs in dts.items():
+                if len(tcs) < DT_MIN_SAMPLE:
+                    continue
+                kr_avg_tc_by_year_wc_dt[y].setdefault(cat, {})[dc] = sum(tcs) / len(tcs)
+                st = sorted(tcs, reverse=True)
+                idx = max(1, int(len(st) * 0.10))
+                kr_top10p_by_year_wc_dt[y].setdefault(cat, {})[dc] = st[idx - 1]
+
+    ncat = len({c for y in kr_avg_tc_by_year_wc for c in kr_avg_tc_by_year_wc[y]})
+    print(f"  WC 세부분야 수: {ncat}")
+    return (kr_avg_tc_by_year_wc, kr_top10p_by_year_wc,
+            kr_avg_tc_by_year_wc_dt, kr_top10p_by_year_wc_dt)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1111,17 +1233,14 @@ def compute_sec2(pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_field,
     # 각 논문의 TC를 동일 분야·연도 한국 평균 TC로 나눈 값의 평균
     ncs_list = []
     ncs_by_year = defaultdict(list)
-    if kr_avg_tc_by_year_field:
-        for r in pure_induced_records:
-            py = r.get("PY", 0)
-            f = r.get("std_field")
-            tc = r.get("TC", 0)
-            if py in kr_avg_tc_by_year_field and f in kr_avg_tc_by_year_field.get(py, {}):
-                expected = kr_avg_tc_by_year_field[py][f]
-                if expected > 0:
-                    ncs = tc / expected
-                    ncs_list.append(ncs)
-                    ncs_by_year[py].append(ncs)
+    for r in pure_induced_records:
+        py = r.get("PY", 0)
+        tc = r.get("TC", 0)
+        expected = r.get("_exp_tc")   # 분야×연도×문헌유형 정규화 (dt 셀 없으면 분야×연도 폴백)
+        if expected and expected > 0:
+            ncs = tc / expected
+            ncs_list.append(ncs)
+            ncs_by_year[py].append(ncs)
 
     mncs = round(sum(ncs_list) / max(len(ncs_list), 1), 3) if ncs_list else None
     mncs_matched = len(ncs_list)
@@ -1311,18 +1430,13 @@ def compute_sec2(pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_field,
         k_tc = sum(r.get("TC", 0) for r in overlap_records)
         k_avg_tc = round(k_tc / max(k_papers, 1), 2)
 
-        # 겹치는 기간 MNCS
+        # 겹치는 기간 MNCS (dt 정규화 기대값 사용)
         k_ncs_list = []
-        if kr_avg_tc_by_year_field:
-            for r in overlap_records:
-                py = r.get("PY", 0)
-                f = r.get("std_field")
-                tc = r.get("TC", 0)
-                if (py in kr_avg_tc_by_year_field
-                        and f in kr_avg_tc_by_year_field.get(py, {})):
-                    expected = kr_avg_tc_by_year_field[py][f]
-                    if expected > 0:
-                        k_ncs_list.append(tc / expected)
+        for r in overlap_records:
+            tc = r.get("TC", 0)
+            expected = r.get("_exp_tc")
+            if expected and expected > 0:
+                k_ncs_list.append(tc / expected)
         k_mncs = round(sum(k_ncs_list) / max(len(k_ncs_list), 1), 3) if k_ncs_list else None
 
         # 예산 정규화 (KISTI)
@@ -1342,12 +1456,13 @@ def compute_sec2(pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_field,
         p_papers_per_10b_yr = round(p_papers_per_yr / p_budget_10b, 2) if (p_papers_per_yr and p_budget_10b) else None
         p_cites_per_10b_yr = round(p_cites_per_yr / p_budget_10b, 2) if (p_cites_per_yr and p_budget_10b) else None
 
-        # 데이터 경고: 2008-2018 SCIE 원시 데이터 부재로 유발논문 과소 집계 가능 구간
+        # 데이터 경고: 분석 데이터는 config.start_year(2011)부터 집계. 그 이전 시작 프로그램은 겹치는 기간이 축소됨
         caveat = None
-        if overlap_end <= 2018:
-            caveat = "KISTI 유발논문은 2008-2018 SCIE 원시 데이터 부재로 이 기간 집계가 극히 불완전합니다. 비교 참고에만 활용하세요."
-        elif overlap_start < 2019 and k_papers < 200:
-            caveat = "겹치는 기간 중 초기(~2018)에 SCIE 원시 데이터 부재로 KISTI 유발논문이 과소 집계되었습니다."
+        if sy is not None and sy < config.start_year:
+            caveat = (f"{prog['name']} 운영 시작({sy})이 KISTI 데이터 집계 시작({config.start_year})보다 일러, "
+                      f"겹치는 기간이 {overlap_start}년부터로 축소됩니다. 이전 구간은 비교에서 제외됩니다.")
+        elif k_papers < 200:
+            caveat = "겹치는 기간의 KISTI 유발논문 표본이 작아 통계적 해석에 주의가 필요합니다."
 
         comp = {
             "program": prog["name"],
@@ -1732,11 +1847,14 @@ def compute_sec5(kbsi_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_fie
     result["sec5_1"] = {"years": year_data, "total": sum(by_year.values())}
     print(f"  5-1 현황: {sum(by_year.values()):,}건")
 
-    # ── 5-2: 인프라별 분석 (KBSI: 단일 분류 "KBSI 분석장비 지원") ──
+    # ── 5-2: 직접/간접 유발 분석 (KBSI: 🟢 공용 분석장비 명시  vs  🟡 KBSI 명칭만, 공통 잣대) ──
     infra_total = Counter()
     infra_by_year = defaultdict(lambda: Counter())
     for r in kbsi_pure_induced_records:
-        infra = "KBSI 분석장비 지원"
+        meta = r.get("_induced_meta", {}) or {}
+        kind, _lbl = _classify_strength_org(r.get("FU") or meta.get("FU") or "",
+                                            r.get("FX") or meta.get("FX") or "", "KBSI")
+        infra = "🟢 직접 유발 (공용 분석장비)" if kind == "strong" else "🟡 간접 유발 (KBSI 명칭만)"
         py = r.get("PY", 0)
         if isinstance(py, int) and config.start_year <= py <= config.end_year:
             infra_by_year[py][infra] += 1
@@ -2049,8 +2167,9 @@ def compute_sec6(kisti_records, pure_induced_records,
                     continue
                 valid_cnt += 1
                 tc = r.get("TC", 0)
-                yr_fields = thresholds_yf.get(py, {})
-                thr = yr_fields.get(f, float("inf"))
+                thr = r.get("_thr")   # dt 정규화 상위10% 임계값 (없으면 분야×연도 폴백)
+                if thr is None:
+                    thr = thresholds_yf.get(py, {}).get(f, float("inf"))
                 if tc >= thr and tc > 0:
                     top10_cnt += 1
             ratio = round(top10_cnt / max(valid_cnt, 1) * 100, 1)
@@ -2414,11 +2533,14 @@ def compute_sec8(ibs_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_fiel
     result["sec8_1"] = {"years": year_data, "total": sum(by_year.values())}
     print(f"  8-1 현황: {sum(by_year.values()):,}건")
 
-    # ── 8-2: 인프라별 분석 (IBS: 단일 분류 "IBS 연구센터 지원") ──
+    # ── 8-2: 직접/간접 유발 분석 (IBS: 🟢 IBS-R 과제코드/RAON  vs  🟡 IBS 명칭만) ──
     infra_total = Counter()
     infra_by_year = defaultdict(lambda: Counter())
     for r in ibs_pure_induced_records:
-        infra = "IBS 연구센터 지원"
+        meta = r.get("_induced_meta", {}) or {}
+        kind, _lbl = _classify_strength_org(r.get("FU") or meta.get("FU") or "",
+                                            r.get("FX") or meta.get("FX") or "", "IBS")
+        infra = "🟢 직접 유발 (RAON 등 공용시설)" if kind == "strong" else "🟡 간접 유발 (IBS 연구비 지원)"
         py = r.get("PY", 0)
         if isinstance(py, int) and config.start_year <= py <= config.end_year:
             infra_by_year[py][infra] += 1
@@ -2673,11 +2795,14 @@ def compute_sec10(pal_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_fie
     result["sec10_1"] = {"years": year_data, "total": sum(by_year.values())}
     print(f"  10-1 현황: {sum(by_year.values()):,}건")
 
-    # ── 10-2: 인프라별 분석 (PAL: 단일 분류 "PAL 방사광 가속기 지원") ──
+    # ── 10-2: 직접/간접 유발 분석 (PAL: 🟢 빔라인/PLS-II/XFEL  vs  🟡 PAL 명칭만) ──
     infra_total = Counter()
     infra_by_year = defaultdict(lambda: Counter())
     for r in pal_pure_induced_records:
-        infra = "PAL 방사광 가속기 지원"
+        meta = r.get("_induced_meta", {}) or {}
+        kind, _lbl = _classify_strength_org(r.get("FU") or meta.get("FU") or "",
+                                            r.get("FX") or meta.get("FX") or "", "PAL")
+        infra = "🟢 직접 유발 (빔라인/PLS-II/XFEL)" if kind == "strong" else "🟡 간접 유발 (PAL 명칭만)"
         py = r.get("PY", 0)
         if isinstance(py, int) and config.start_year <= py <= config.end_year:
             infra_by_year[py][infra] += 1
@@ -2843,8 +2968,9 @@ def compute_sec11(kisti_records, pure_induced_records,
                 continue
             valid_cnt += 1
             tc = r.get("TC", 0)
-            yr_fields = thresholds_yf.get(py, {})
-            thr = yr_fields.get(f, float("inf"))
+            thr = r.get("_thr")   # dt 정규화 상위10% 임계값 (없으면 분야×연도 폴백)
+            if thr is None:
+                thr = thresholds_yf.get(py, {}).get(f, float("inf"))
             if tc >= thr and tc > 0:
                 top10_cnt += 1
         return round(top10_cnt / max(valid_cnt, 1) * 100, 1), top10_cnt, valid_cnt
@@ -2872,17 +2998,13 @@ def compute_sec11(kisti_records, pure_induced_records,
         return round(q1 / max(matched, 1) * 100, 1), q1, matched
 
     def _mncs(records):
-        if not kr_avg_tc_by_year_field or not records:
+        if not records:
             return None, 0
         total_ncs = 0.0
         valid = 0
         for r in records:
-            py = r.get("PY", 0)
-            f = r.get("std_field")
-            if not f:
-                continue
-            kr_avg = (kr_avg_tc_by_year_field.get(py, {}) or {}).get(f, 0)
-            if kr_avg <= 0:
+            kr_avg = r.get("_exp_tc")   # dt 정규화 기대값
+            if not kr_avg or kr_avg <= 0:
                 continue
             valid += 1
             total_ncs += r.get("TC", 0) / kr_avg
@@ -3316,6 +3438,40 @@ def _classify_infra_strength(fu, fx):
         if key in upper:
             return "strong", label
     return "medium", "NTIS"
+
+
+# 직접유발 = 4기관 공통 잣대: 사사표기에 "실제 공용 인프라·장비·시설" 명시 (펀딩/과제코드·기관명만 = 간접)
+#   IBS의 IBS-R### 과제코드는 '연구비 지원'(funding)이라 직접에서 제외 → 기관 간 비교 공정화
+_ORG_STRONG_PATTERNS = {
+    "KBSI": [   # 공용 분석장비/센터
+        (re.compile(r'\bNMR\b', re.I), "NMR"),
+        (re.compile(r'Mass Spectrom', re.I), "질량분석"),
+        (re.compile(r'Electron Microsc', re.I), "전자현미경"),
+        (re.compile(r'FT.?ICR', re.I), "FT-ICR"),
+        (re.compile(r'ultra.?high.?voltage', re.I), "초고전압전자현미경"),
+        (re.compile(r'\bOchang\b', re.I), "오창센터"),
+        (re.compile(r'\bChuncheon\b', re.I), "춘천센터"),
+    ],
+    "IBS": [   # IBS 공용 물리시설 (과제코드 IBS-R###는 funding이라 제외)
+        (re.compile(r'\bRAON\b', re.I), "RAON 중이온가속기"),
+    ],
+    "PAL": [   # 방사광 빔라인/광원
+        (re.compile(r'PLS-?II', re.I), "PLS-II"),
+        (re.compile(r'PAL[\s.\-]?XFEL', re.I), "PAL-XFEL"),
+        (re.compile(r'Pohang Light Source', re.I), "Pohang Light Source"),
+        (re.compile(r'\bbeamlines?\b', re.I), "beamline"),
+        (re.compile(r'\bBL-?\d', re.I), "BL-#(빔라인)"),
+    ],
+}
+
+
+def _classify_strength_org(fu, fx, org):
+    """IBS/PAL 유발논문 직접(strong)/간접(medium) 분류. 구체 시설·과제코드 매칭 시 strong."""
+    text = (fu or "") + " " + (fx or "")
+    for pat, label in _ORG_STRONG_PATTERNS.get(org, []):
+        if pat.search(text):
+            return "strong", label
+    return "medium", None
 
 
 def compute_insights_hcp(pure_induced_records, pure_induced_uts, wos_by_ut,
@@ -3775,11 +3931,7 @@ def compute_insights_intl(pure_induced_records, jcr_data,
     def mncs(records):
         vals = []
         for r in records:
-            py = r.get("PY")
-            fld = r.get("std_field")
-            if not py or not fld:
-                continue
-            denom = kr_avg_tc_by_year_field.get(py, {}).get(fld)
+            denom = r.get("_exp_tc")   # dt 정규화 기대값
             if not denom:
                 continue
             vals.append((r.get("TC", 0) or 0) / denom)
@@ -4135,6 +4287,283 @@ def compute_insights_counterfactual(pure_induced_records, wos_by_ut, hcp_index, 
     return result
 
 
+def compute_insights_field_quality(
+    inst_records_map,                # {"KISTI": [...], "KBSI": [...], "IBS": [...], "PAL": [...]}
+    kr_avg_tc_by_year_field,
+    kr_top10p_by_year_field,
+    hcp_index,
+    config: RunConfig,
+    kr_avg_tc_by_year_wc=None,
+    kr_top10p_by_year_wc=None,
+    kr_avg_tc_by_year_wc_dt=None,
+    kr_top10p_by_year_wc_dt=None,
+):
+    """I-6. 분야별 기관 간 질적 비교 — KISTI vs KBSI vs IBS vs PAL.
+
+    각 기관 유발논문을 22개 ESI 분야로 나누고, 각 분야 셀에서 다음을 산출:
+      • n           — 분야 논문 수
+      • avg_tc      — 평균 피인용
+      • mncs        — Mean Normalized Citation Score (한국 동분야·동연도 평균TC 대비)
+      • top10p_pct  — 한국 분야·연도별 상위10% 임계값 이상 논문 비율(%)
+      • hcp_n       — HCP 인덱스 매칭 건수
+      • hcp_pct     — HCP / n × 100
+
+    그리고 각 분야에서 KISTI가 다른 3기관 대비 우수한지(MNCS·Top10%·HCP%) 자동 표시.
+    """
+    result = {}
+    years = list(range(config.start_year, config.end_year + 1))
+    hcp_uts = set((hcp_index or {}).get("papers", {}).keys())
+    inst_order = ["KISTI", "KBSI", "IBS", "PAL"]
+
+    def _stats_for_field(records, field):
+        recs = [r for r in records if r.get("std_field") == field
+                and isinstance(r.get("PY"), int)
+                and config.start_year <= r["PY"] <= config.end_year]
+        n = len(recs)
+        if n == 0:
+            return {
+                "n": 0, "avg_tc": 0.0, "mncs": None, "mncs_matched": 0,
+                "top10p_pct": None, "top10p_n": 0, "top10p_valid": 0,
+                "hcp_n": 0, "hcp_pct": 0.0,
+            }
+        tcs = [r.get("TC", 0) or 0 for r in recs]
+        avg_tc = round(sum(tcs) / n, 2)
+
+        # MNCS (dt 정규화 기대값)
+        ncs_vals = []
+        for r in recs:
+            kr_avg = r.get("_exp_tc")
+            if kr_avg and kr_avg > 0:
+                ncs_vals.append((r.get("TC", 0) or 0) / kr_avg)
+        mncs = round(sum(ncs_vals) / len(ncs_vals), 3) if ncs_vals else None
+
+        # Top10% (dt 정규화 임계값)
+        top10p_n = 0
+        top10p_valid = 0
+        for r in recs:
+            thr = r.get("_thr")
+            if thr is None:
+                continue
+            top10p_valid += 1
+            tc = r.get("TC", 0) or 0
+            if tc > 0 and tc >= thr:
+                top10p_n += 1
+        top10p_pct = round(top10p_n / top10p_valid * 100, 2) if top10p_valid else None
+
+        # HCP
+        hcp_n = sum(1 for r in recs if r.get("UT") in hcp_uts)
+        hcp_pct = round(hcp_n / n * 100, 2) if n else 0.0
+
+        return {
+            "n": n, "avg_tc": avg_tc,
+            "mncs": mncs, "mncs_matched": len(ncs_vals),
+            "top10p_pct": top10p_pct, "top10p_n": top10p_n, "top10p_valid": top10p_valid,
+            "hcp_n": hcp_n, "hcp_pct": hcp_pct,
+        }
+
+    # 매트릭스: field → inst → stats
+    matrix = {}
+    overall = {}   # 기관 전체(모든 분야 합산) 요약
+    for inst in inst_order:
+        recs_all = inst_records_map.get(inst, []) or []
+        recs_all = [r for r in recs_all
+                    if isinstance(r.get("PY"), int)
+                    and config.start_year <= r["PY"] <= config.end_year]
+        n_all = len(recs_all)
+        tcs_all = [r.get("TC", 0) or 0 for r in recs_all]
+        avg_tc_all = round(sum(tcs_all) / n_all, 2) if n_all else 0.0
+        ncs_all = []
+        for r in recs_all:
+            kr_avg = r.get("_exp_tc")
+            if kr_avg and kr_avg > 0:
+                ncs_all.append((r.get("TC", 0) or 0) / kr_avg)
+        mncs_all = round(sum(ncs_all) / len(ncs_all), 3) if ncs_all else None
+        top10_n = 0; top10_v = 0
+        for r in recs_all:
+            thr = r.get("_thr")
+            if thr is None:
+                continue
+            top10_v += 1
+            tc = r.get("TC", 0) or 0
+            if tc > 0 and tc >= thr:
+                top10_n += 1
+        top10_pct = round(top10_n / top10_v * 100, 2) if top10_v else None
+        hcp_n_all = sum(1 for r in recs_all if r.get("UT") in hcp_uts)
+        overall[inst] = {
+            "n": n_all, "avg_tc": avg_tc_all,
+            "mncs": mncs_all, "mncs_matched": len(ncs_all),
+            "top10p_pct": top10_pct, "top10p_n": top10_n, "top10p_valid": top10_v,
+            "hcp_n": hcp_n_all,
+            "hcp_pct": round(hcp_n_all / n_all * 100, 2) if n_all else 0.0,
+        }
+
+    for f in ESI_22_FIELDS:
+        row = {}
+        for inst in inst_order:
+            row[inst] = _stats_for_field(inst_records_map.get(inst, []) or [], f)
+        matrix[f] = row
+
+    # KISTI 우수 분야 자동 도출 (다른 모든 기관 대비 우위 + 최소 표본 30편)
+    def _is_kisti_best(cells, key, min_n=30):
+        ki = cells["KISTI"]
+        if ki["n"] < min_n or ki.get(key) is None:
+            return False
+        ki_v = ki[key]
+        for other in ("KBSI", "IBS", "PAL"):
+            o = cells[other]
+            if o.get(key) is not None and o["n"] >= min_n and o[key] >= ki_v:
+                return False
+        return True
+
+    kisti_top_mncs = []
+    kisti_top_top10p = []
+    kisti_top_hcp = []
+    for f, row in matrix.items():
+        if _is_kisti_best(row, "mncs"):
+            kisti_top_mncs.append({
+                "field": f, "kisti_mncs": row["KISTI"]["mncs"], "kisti_n": row["KISTI"]["n"],
+                "others": {k: row[k]["mncs"] for k in ("KBSI", "IBS", "PAL")},
+            })
+        if _is_kisti_best(row, "top10p_pct"):
+            kisti_top_top10p.append({
+                "field": f, "kisti_top10p": row["KISTI"]["top10p_pct"], "kisti_n": row["KISTI"]["n"],
+                "others": {k: row[k]["top10p_pct"] for k in ("KBSI", "IBS", "PAL")},
+            })
+        if _is_kisti_best(row, "hcp_pct"):
+            kisti_top_hcp.append({
+                "field": f, "kisti_hcp_pct": row["KISTI"]["hcp_pct"],
+                "kisti_n": row["KISTI"]["n"], "kisti_hcp_n": row["KISTI"]["hcp_n"],
+                "others": {k: row[k]["hcp_pct"] for k in ("KBSI", "IBS", "PAL")},
+            })
+
+    # 가장 활발한 분야 (KISTI 논문수 기준 Top 8)
+    field_volume = sorted(
+        ((f, matrix[f]["KISTI"]["n"]) for f in ESI_22_FIELDS),
+        key=lambda x: -x[1],
+    )
+    top_volume_fields = [f for f, _ in field_volume[:8]]
+
+    # 기관별 최강 분야 (각 기관의 MNCS 1위 분야, 표본 30편 이상)
+    best_field_by_inst = {}
+    for inst in inst_order:
+        cands = [(f, matrix[f][inst]) for f in ESI_22_FIELDS
+                 if matrix[f][inst]["n"] >= 30 and matrix[f][inst].get("mncs") is not None]
+        cands.sort(key=lambda x: -x[1]["mncs"])
+        if cands:
+            f, s = cands[0]
+            best_field_by_inst[inst] = {"field": f, "mncs": s["mncs"], "n": s["n"]}
+        else:
+            best_field_by_inst[inst] = None
+
+    # ── 시계열: field → inst → {n[], mncs[], top10p_pct[], hcp_pct[]} (years 축 공유) ──
+    # 분야별 질적 지표의 연도별 추이. 소표본 연도는 None/0으로 두고 프론트에서 표본수로 신뢰도 판단.
+    timeseries = {}
+    for f in ESI_22_FIELDS:
+        finst = {}
+        for inst in inst_order:
+            recs = [r for r in (inst_records_map.get(inst) or [])
+                    if r.get("std_field") == f and isinstance(r.get("PY"), int)
+                    and config.start_year <= r["PY"] <= config.end_year]
+            by_year = {y: [] for y in years}
+            for r in recs:
+                by_year[r["PY"]].append(r)
+            n_arr, mncs_arr, top_arr, hcp_arr = [], [], [], []
+            for y in years:
+                yr = by_year[y]
+                n = len(yr)
+                n_arr.append(n)
+                if n == 0:
+                    mncs_arr.append(None); top_arr.append(None); hcp_arr.append(None)
+                    continue
+                ncs = [(r.get("TC", 0) or 0) / r["_exp_tc"] for r in yr if r.get("_exp_tc")]
+                mncs_arr.append(round(sum(ncs) / len(ncs), 3) if ncs else None)
+                tvalid = [r for r in yr if r.get("_thr") is not None]
+                if not tvalid:
+                    top_arr.append(None)
+                else:
+                    tn = sum(1 for r in tvalid if (r.get("TC", 0) or 0) > 0 and (r.get("TC", 0) or 0) >= r["_thr"])
+                    top_arr.append(round(tn / len(tvalid) * 100, 2))
+                hn = sum(1 for r in yr if r.get("UT") in hcp_uts)
+                hcp_arr.append(round(hn / n * 100, 2))
+            finst[inst] = {"n": n_arr, "mncs": mncs_arr, "top10p_pct": top_arr, "hcp_pct": hcp_arr}
+        timeseries[f] = finst
+
+    # ── WoS 254 세부분야 드릴다운 (WC 기준 기관별 질적 매트릭스) ──
+    wc254 = None
+    if kr_avg_tc_by_year_wc:
+        wc_inst = {inst: defaultdict(list) for inst in inst_order}  # inst → cat → [recs]
+        for inst in inst_order:
+            for r in (inst_records_map.get(inst) or []):
+                py = r.get("PY")
+                if not isinstance(py, int) or py < config.start_year or py > config.end_year:
+                    continue
+                for cat in (r.get("WC") or "").split(";"):
+                    cat = cat.strip()
+                    if cat:
+                        wc_inst[inst][cat].append(r)
+        all_cats = sorted({c for inst in inst_order for c in wc_inst[inst]})
+        wc_matrix = {}
+        for cat in all_cats:
+            row = {}
+            for inst in inst_order:
+                recs = wc_inst[inst].get(cat, [])
+                n = len(recs)
+                if n == 0:
+                    row[inst] = {"n": 0, "avg_tc": 0.0, "mncs": None, "top10p_pct": None,
+                                 "hcp_n": 0, "hcp_pct": 0.0}
+                    continue
+                tcs = [r.get("TC", 0) or 0 for r in recs]
+                ncs = []; tn = 0; tv = 0; hn = 0
+                for r in recs:
+                    py = r.get("PY"); tc = r.get("TC", 0) or 0
+                    dtc = _dt_class(r)
+                    # WC도 분야×연도×문헌유형 정규화 (dt 셀 없으면 분야×연도 폴백)
+                    ka = _exp_tc(kr_avg_tc_by_year_wc, kr_avg_tc_by_year_wc_dt, py, cat, dtc)
+                    if ka and ka > 0:
+                        ncs.append(tc / ka)
+                    thr = _thr_top10p(kr_top10p_by_year_wc, kr_top10p_by_year_wc_dt, py, cat, dtc)
+                    if thr is not None:
+                        tv += 1
+                        if tc > 0 and tc >= thr:
+                            tn += 1
+                    if r.get("UT") in hcp_uts:
+                        hn += 1
+                row[inst] = {
+                    "n": n, "avg_tc": round(sum(tcs) / n, 2),
+                    "mncs": round(sum(ncs) / len(ncs), 3) if ncs else None,
+                    "top10p_pct": round(tn / tv * 100, 2) if tv else None,
+                    "hcp_n": hn, "hcp_pct": round(hn / n * 100, 2),
+                }
+            wc_matrix[cat] = row
+        wc254 = {"categories": all_cats, "matrix": wc_matrix}
+        print(f"  WC254 드릴다운: {len(all_cats)}개 세부분야 × {len(inst_order)}기관")
+
+    result["ins_field_quality"] = {
+        "institutions": inst_order,
+        "fields": ESI_22_FIELDS,
+        "overall": overall,
+        "matrix": matrix,
+        "kisti_best": {
+            "by_mncs": sorted(kisti_top_mncs, key=lambda x: -x["kisti_mncs"]),
+            "by_top10p": sorted(kisti_top_top10p, key=lambda x: -x["kisti_top10p"]),
+            "by_hcp": sorted(kisti_top_hcp, key=lambda x: -x["kisti_hcp_pct"]),
+        },
+        "top_volume_fields": top_volume_fields,
+        "best_field_by_inst": best_field_by_inst,
+        "years": years,
+        "timeseries": timeseries,
+        "wc254": wc254,
+    }
+
+    print(f"  I-6 분야별 질적: KISTI MNCS 우위 {len(kisti_top_mncs)}분야 / "
+          f"Top10% 우위 {len(kisti_top_top10p)}분야 / HCP% 우위 {len(kisti_top_hcp)}분야")
+    for r in kisti_top_mncs[:3]:
+        print(f"     [MNCS] {r['field']}: KISTI {r['kisti_mncs']} vs "
+              f"KBSI {r['others']['KBSI']} / IBS {r['others']['IBS']} / PAL {r['others']['PAL']}")
+
+    return result
+
+
 # ═══════════════════════════════════════════════════════════
 # 논문별 레코드 빌드 (프론트엔드 논문관리 페이지용)
 # ═══════════════════════════════════════════════════════════
@@ -4289,6 +4718,7 @@ def build_paper_records(kisti_records, pure_induced_records,
                 "SO": r.get("SO", ""),
                 "db": r.get("db", ""),
                 "std_field": r.get("std_field"),
+                "dtc": ("R" if _dt_class(r) == "Review" else "A"),
                 "collab_type": r.get("collab_type", "미분류"),
                 "jif": jif,
                 "quartile": q,
@@ -4314,6 +4744,7 @@ def build_paper_records(kisti_records, pure_induced_records,
                 "TI": r.get("TI", meta.get("TI", "")),
                 "db": r.get("db", meta.get("db", "")),
                 "std_field": r.get("std_field"),
+                "dtc": ("R" if _dt_class(r) == "Review" else "A"),
                 "collab_type": r.get("collab_type", "미분류"),
                 "jif": jif,
                 "quartile": q,
@@ -4380,10 +4811,21 @@ def main():
     )
     (kr_by_year, kr_tc_by_year, kr_by_field, kr_count,
      kr_top10p_by_year, kr_top10p_by_year_field,
-     kr_avg_tc_by_year_field) = compute_korea_stats(wos_data, config)
+     kr_avg_tc_by_year_field, kr_avg_tc_by_year_field_dt,
+     kr_top10p_by_year_field_dt) = compute_korea_stats(wos_data, config)
+
+    # WoS 254 세부분야 베이스라인 (wos_data 해제 전에 계산)
+    (kr_avg_tc_by_year_wc, kr_top10p_by_year_wc,
+     kr_avg_tc_by_year_wc_dt, kr_top10p_by_year_wc_dt) = compute_korea_wc_stats(wos_data, config)
 
     # Free wos_data from memory after extracting what we need
     del wos_data
+
+    # ── 문헌유형(dt) 정규화 기대값을 모든 논문 레코드에 1회 주석 (MNCS/상위10% 공유) ──
+    for _recs in (kisti_records, pure_induced_records, kbsi_records, kbsi_pure_induced_records,
+                  ibs_records, ibs_pure_induced_records, pal_pure_induced_records):
+        _annotate_norm(_recs, kr_avg_tc_by_year_field, kr_avg_tc_by_year_field_dt,
+                       kr_top10p_by_year_field, kr_top10p_by_year_field_dt)
 
     sec1 = compute_sec1(kisti_records, kr_by_year, kr_tc_by_year, kr_by_field,
                         inst_data, jcr_data, wos_by_ut, kisti_author_uts, config)
@@ -4433,6 +4875,22 @@ def main():
                                            hcp_index, config))
     insights.update(compute_insights_counterfactual(pure_induced_records,
                                                      wos_by_ut, hcp_index, config))
+    insights.update(compute_insights_field_quality(
+        inst_records_map={
+            "KISTI": pure_induced_records,
+            "KBSI": kbsi_pure_induced_records,
+            "IBS": ibs_pure_induced_records,
+            "PAL": pal_pure_induced_records,
+        },
+        kr_avg_tc_by_year_field=kr_avg_tc_by_year_field,
+        kr_top10p_by_year_field=kr_top10p_by_year_field,
+        kr_avg_tc_by_year_wc=kr_avg_tc_by_year_wc,
+        kr_top10p_by_year_wc=kr_top10p_by_year_wc,
+        kr_avg_tc_by_year_wc_dt=kr_avg_tc_by_year_wc_dt,
+        kr_top10p_by_year_wc_dt=kr_top10p_by_year_wc_dt,
+        hcp_index=hcp_index,
+        config=config,
+    ))
 
     # 논문별 레코드 빌드
     (kisti_paper_recs, induced_paper_recs, kbsi_paper_recs, kbsi_induced_paper_recs,
@@ -4508,6 +4966,8 @@ def main():
             "top10p_by_year": kr_top10p_by_year,
             "top10p_by_year_field": kr_top10p_by_year_field,
             "avg_tc_by_year_field": kr_avg_tc_by_year_field,
+            "avg_tc_by_year_field_dt": kr_avg_tc_by_year_field_dt,
+            "top10p_by_year_field_dt": kr_top10p_by_year_field_dt,
         },
     }
 

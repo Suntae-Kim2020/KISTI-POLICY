@@ -377,6 +377,8 @@ def api_export_html():
         cache_data, ensure_ascii=False).replace('</', '<\\/')
     excl_json = json.dumps(
         excl_data, ensure_ascii=False).replace('</', '<\\/')
+    # 파싱된 dict는 더 이상 불필요(meta는 위에서 추출 완료) — 인라인 직전 해제로 피크 메모리 절감
+    cache_data = None
 
     need_recompute = (
         start_year != meta.get("start_year")

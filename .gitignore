@@ -20,4 +20,5 @@ __pycache__/
 
 # 백업 / 생성 산출물
 *.bak
+*.before_*
 KISTI_Policy_*.docx

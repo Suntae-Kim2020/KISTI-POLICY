@@ -21,6 +21,7 @@ KISTI(한국과학기술정보연구원)의 논문 성과와 인프라 유발 �
 KISTI_Policy/
 ├── CLAUDE.md                    # 이 파일
 ├── compute.py                   # 데이터 전처리: pickle 로딩 → 분석 → data_cache.json 생성
+├── build_inst_2025_c1.py        # WoS C1(저자주소)에서 연도별 논문×기관 연결 복원 → generated/{ver}/wos_institutions.pkl (제약 #10)
 ├── app.py                       # Flask 서버 (port 5002)
 ├── scan_kbsi_induced.py         # KBSI 유발논문 탐색 → kbsi_induced_papers.json 생성
 ├── scan_ibs_induced.py          # IBS 유발논문 탐색 → ibs_induced_papers.json 생성
@@ -145,27 +146,34 @@ python3 KISTI_Policy/app.py
 
 **분류 원칙**: 사사표기(FU/FX)에 인프라 키워드가 있으면 소속 공저자 유무와 무관하게 **유발논문으로 분류**. 중복분(소속+사사)은 직접논문에서 제외.
 
+> **기준**: 2011-2025년 데이터 (report_2026 raw, SCIE+SSCI+AHCI). 직접논문(소속기반) 2025년분은
+> 기관 연결 xlsx(`기관명데이터.xlsx`)가 2025를 11%만 포함해 과소집계였으나, **`build_inst_2025_c1.py`로
+> wos_data의 C1(저자주소)에서 2025 논문×기관 연결을 복원**(→ `generated/2025/wos_institutions.pkl`)하여 **해소**됨.
+> 상세: `build_inst_2025_c1.py` 및 제약 #10 참조.
+
 ```
 KISTI 소속 UT (inst_data에서 org_alias 매칭)
-  → 2,580건 (Article 필터 후)
-  → 중복(소속+사사) 624건 → 유발논문으로 이동
-  → kisti_author_uts: 1,956건 (직접논문)
+  → 2,601건 (Article 필터 후)
+  → 중복(소속+사사) 1,251건 → 유발논문으로 이동
+  → kisti_author_uts: 1,350건 (직접논문, 2025 C1복원 반영)
 
-KISTI 유발논문 UT (kisti_induced_papers.json, 사사표기 기반)
-  → induced_json_uts: 6,161건 (사사 있으면 전부 유발논문)
-  → wos_data 매칭: 6,104건
+KISTI 유발논문 UT (data_2025/kisti_induced_papers.json, 사사표기 기반)
+  → induced_json_uts: 14,914건 (사사 있으면 전부 유발논문)
+  → wos_data 매칭: 14,906건
 
-KBSI 소속 UT → 6,832건 → 중복 2,345건 제외 → kbsi_author_uts: 4,487건
-KBSI 유발논문 UT → kbsi_induced: 7,810건
+KBSI 소속 UT → 6,773건(Article 후) → 중복 2,453건 제외 → kbsi_author_uts: 4,320건
+KBSI 유발논문 UT → kbsi_induced: 8,884건 (wos 매칭 8,877)
 
 IBS 소속 UT (inst_data에서 org_alias = "INST BASIC SCI KOREA")
-  → 9,223건 (Article 필터 후)
-  → 중복(소속+사사) 6,617건 → 유발논문으로 이동
-  → ibs_author_uts: 2,606건 (직접논문)
+  → 11,124건 (Article 필터 후)
+  → 중복(소속+사사) 7,915건 → 유발논문으로 이동
+  → ibs_author_uts: 3,209건 (직접논문, 2025 C1복원 반영)
 
-IBS 유발논문 UT (ibs_induced_papers.json, 사사표기 기반)
-  → ibs_induced_json_uts: 8,294건
-  → wos_data 매칭: 8,290건
+IBS 유발논문 UT (data_2025/ibs_induced_papers.json, 사사표기 기반)
+  → ibs_induced_json_uts: 9,830건
+  → wos_data 매칭: 9,827건
+
+PAL 유발논문 UT (data_2025/pal_induced_papers.json) → 3,359건 (직접논문 없음)
 ```
 
 ### 3단계: 섹션별 통계 계산 (52개 페이지)
@@ -310,24 +318,43 @@ IBS 유발논문 UT (ibs_induced_papers.json, 사사표기 기반)
 | PLSI/KIAF | `PLSI`, `KIAF` (이전 슈퍼컴) |
 | 기타 KISTI 지원 | 위 키워드 없이 `KISTI`만 매칭 |
 
+### 직접/간접 유발 분류 (4기관 공통 잣대)
+
+유발논문을 사사표기(FU/FX) 기준으로 🟢 직접유발과 🟡 간접유발로 구분.
+**공통 잣대**: 사사표기에 **실제 공용 인프라·장비·시설** 명시 = 🟢직접 / **기관명·펀딩 과제코드만** = 🟡간접.
+`_classify_infra_strength()`(KISTI) / `_classify_strength_org()`(KBSI·IBS·PAL), compute.py.
+
+> 기관 간 공정 비교를 위해 동일 축(공용 인프라 사용률)으로 정의. IBS의 `IBS-R###`(연구단 과제코드)는 **funding이라 간접으로 분류**(구 방식의 81% 과대평가 정정).
+
+| 기관 | 🟢 직접유발 키워드 (공용 인프라/장비) | 직접 비중 |
+|------|-------------------|-----------|
+| KISTI | `KSC-`, `NURION`, `GSDC`, `KREONET`, `EDISON`, `PLSI`, `KIAF` | 4,056 (27.2%) |
+| KBSI | `NMR`, `질량분석`, `전자현미경`, `FT-ICR`, `초고전압`, `Ochang`, `Chuncheon` | 1,198 (13.5%, sec5_2) |
+| IBS | `RAON`(중이온가속기) — IBS-R### 과제코드는 funding이라 **제외** | 15 (0.2%, sec8_2) |
+| PAL | `PLS-II`, `PAL-XFEL`, `Pohang Light Source`, `beamline`, `BL-#` | 2,618 (77.9%, sec10_2) |
+
+**IBS 0.2% caveat**: IBS는 인프라 제공기관이 아니라 **연구비 지원기관**이라 공용 시설 사용 표기가 드문 게 정상(기여는 자금 형태). KBSI 13.5%는 장비명 일반성 탓에 **하한**. 각각 sec5_2/sec8_2/sec10_2 "직접/간접 유발 분석" 페이지에 KPI·도넛·표로 표시.
+
 ---
 
-## 현재 데이터 기준 통계 (2024년 데이터)
+## 현재 데이터 기준 통계 (2011-2025년 데이터, report_2026)
+
+> 직접논문 2025년분은 C1(저자주소) 복원으로 정상화됨(`build_inst_2025_c1.py`, 제약 #10 참조).
 
 | 항목 | KISTI | KBSI | IBS | PAL |
 |------|-------|------|-----|-----|
-| 직접 논문 (사사 제외) | 1,956건 | 4,487건 | 2,606건 | N/A |
-| 유발논문 (사사표기 기반) | 6,104건 | 7,810건 | 8,290건 | 3,123건 |
-| 중복(소속+사사) → 유발로 이동 | 624건 | 2,345건 | 6,617건 | N/A |
-| 평균 피인용 (직접) | 53.0회 | 25.0회 | 24.5회 | N/A |
-| 평균 피인용 (유발) | 30.9회 | 22.9회 | — | 30.5회 |
+| 직접 논문 (사사 제외, 2025 C1복원) | 1,350건 | 4,320건 | 3,209건 | N/A |
+| 유발논문 (사사표기 기반) | 14,914건 | 8,884건 | 9,830건 | 3,359건 |
+| 중복(소속+사사) → 유발로 이동 | 1,251건 | 2,453건 | 7,915건 | N/A |
+| 평균 피인용 (직접) | 66.0회 | 29.0회 | 31.0회 | N/A |
+| 평균 피인용 (유발) | 58.1회 | 25.1회 | — | — |
 | 총현원 (2021) | 512명 | 392명 | N/A (비NST) | N/A |
 | 박사인력 (2021) | 257명 | 181명 | N/A (비NST) | N/A |
 
 | 항목 | 값 |
 |------|-----|
-| 한국 전체 논문 | 955,146건 |
-| KISTI 합산 한국 비중 | 0.84% |
+| 한국 전체 논문 (2011-2025) | 979,786건 |
+| KISTI 합산 한국 비중 | 1.66% |
 | 평균 JIF (KISTI) | 4.36 |
 | MNCS (유발논문) | 1.957 (한국 평균 대비 95.7% 높은 피인용 영향력) |
 | 논문/10억원/년 (KISTI 유발) | 9.43 |
@@ -341,14 +368,14 @@ IBS 유발논문 UT (ibs_induced_papers.json, 사사표기 기반)
 
 | 데이터 | 출처 | 수집 방법 | 기준년도 | 핵심 내용 |
 |--------|------|-----------|----------|-----------|
-| WoS 논문 (`wos_data.pkl`) | Clarivate Web of Science SCIE | WoS 검색 → TXT 다운로드(`rawdata/wos/`) → `preprocess_wos.py` 변환 | 2008-2024 | 한국 SCIE 논문 964,378건 (UT, PY, TC, SO, DT, SN, EI 등) |
-| WoS 기관 (`wos_institutions.pkl`) | Clarivate Web of Science | 동일 TXT에서 C1/RP 필드 파싱 | 2008-2024 | 기관별 매핑 2,813,616건 (org_alias, institution_type_7, country_code) |
+| WoS 논문 (`wos_data.pkl`) | Clarivate Web of Science SCIE/SSCI/AHCI | WoS 검색 → TXT 다운로드(`rawdata/report_2026/wos/`) → `preprocess_wos.py` 변환 | 2011-2025 | 한국 논문 979,786건 (SCIE 935K+SSCI 39.7K+AHCI 4.6K; UT, PY, TC, SO, DT, SN, EI 등) |
+| WoS 기관 (`wos_institutions.pkl`) | Clarivate Web of Science | `기관명데이터.xlsx`(isi_loc→org_alias) 파싱 | 2008-2024 (2025 오프라인 갱신 중) | 기관별 매핑 2,813,616건 (org_alias, institution_type_7, country_code) |
 | JCR JIF (`jcr_jif.pkl`) | Clarivate JCR (Journal Citation Reports) | JCR 엑셀(`rawdata/jcr/`) 다운로드 → pickle 변환 | 2008-2023 | 저널별 JIF, JIF Quartile (Q1-Q4) |
 | ESI 분야 (`esi_journal_map.pkl`) | Clarivate ESI (Essential Science Indicators) | ESI 저널 분류표(`rawdata/esi/`) 다운로드 | 2024 기준 | ISSN → ESI 22개 연구분야 매핑 |
-| KISTI 유발논문 (`kisti_induced_papers.json`) | WoS FU/FX 필드 키워드 검색 | KISTI 인프라 키워드(KSC, NURION, KREONET, EDISON 등) 매칭 | 2008-2024 | 6,307건 (인프라 유형별 분류 포함) |
-| KBSI 유발논문 (`kbsi_induced_papers.json`) | WoS FU/FX 필드 키워드 검색 | `scan_kbsi_induced.py`로 KBSI 키워드 매칭 | 2008-2024 | KBSI 인프라 활용 논문 |
-| IBS 유발논문 (`ibs_induced_papers.json`) | WoS FU/FX 필드 키워드 검색 | `scan_ibs_induced.py`로 IBS 키워드(`\bIBS\b`, `Institute for Basic Science`) 매칭 | 2008-2024 | 8,294건 (IBS 연구센터 지원 논문) |
-| PAL 유발논문 (`pal_induced_papers.json`) | WoS FU/FX 필드 키워드 검색 | `scan_pal_induced.py`로 PAL 키워드(`Pohang Accelerat`, `Pohang Light Source`, `PAL-XFEL`, `PLS-II`) 매칭 | 2008-2024 | 3,123건 (포항가속기연구소 활용 논문) |
+| KISTI 유발논문 (`data_2025/kisti_induced_papers.json`) | WoS FU/FX 필드 키워드 검색 | `scan_all_induced_2026.py`로 KISTI 키워드(KISTI, KSC-, NURION, KREONET, EDISON, PLSI, KIAF, 풀네임) 매칭 | 2011-2025 | 14,909건 |
+| KBSI 유발논문 (`data_2025/kbsi_induced_papers.json`) | WoS FU/FX 필드 키워드 검색 | `scan_all_induced_2026.py`로 KBSI 키워드(`\bKBSI\b`, `Korea Basic Science Inst`) 매칭 | 2011-2025 | 8,884건 |
+| IBS 유발논문 (`data_2025/ibs_induced_papers.json`) | WoS FU/FX 필드 키워드 검색 | `scan_all_induced_2026.py`로 IBS 키워드(`\bIBS\b`, `Institute for Basic Science`) 매칭 | 2011-2025 | 9,827건 |
+| PAL 유발논문 (`data_2025/pal_induced_papers.json`) | WoS FU/FX 필드 키워드 검색 | `scan_all_induced_2026.py`로 PAL 키워드(`Pohang Accelerat`, `Pohang Light Source`, `PAL-XFEL`, `PLS-II`) 매칭 | 2011-2025 | 3,359건 |
 | 출연연 인력 CSV | 국가과학기술연구회(NST) 공시자료 | 수기 수집 (CP949 CSV) | 2021.12.31 기준 | 25개 출연연 학위별 정규인력 (박사/석사/학사이하/총현원) |
 | 경제적 가치 참고수치 | KISTEP, KREONET 보고서 | 웹 조사 (2026.02 수집) | 2022 기준 | 논문당 연구비, 인프라 예산, B/C 비율 |
 | 국제 비교 참고수치 | XSEDE/PRACE/NERSC 등 공식 보고서·논문 | 웹 조사 (2026.02 수집) | 2011-2023 | 논문수, 예산, ROI, 피인용 영향력 |
@@ -401,11 +428,15 @@ IBS 유발논문 UT (ibs_induced_papers.json, 사사표기 기반)
 ## 제약사항
 
 1. **연구자 분석 보류**: `wos_data.pkl`에 AU/AF 필드 없음. 향후 `preprocess_wos.py`에 AU 추가 후 구현 가능.
-2. **유발논문 2008-2018 SCIE 부재**: 해당 기간 SCIE 원시 TXT 파일 없어 유발논문 과소 집계. 대시보드에 주석 표시.
+2. **(해소) 유발논문 2008-2018 SCIE 부재**: 구 데이터(2008-2024)는 2008-2018 SCIE 원시 TXT 부재로 유발논문 과소집계 문제가 있었으나, **report_2026(2011-2025 SCIE+SSCI+AHCI 전수) 수집으로 해소**. 분석 기간이 2011년부터로 변경됨. KISTI 유발논문 6,104→14,909건 등 대폭 증가.
 3. **메모리**: `compute.py` 실행 시 ~3-4GB RAM 필요 (pickle 로딩). 실행 후 JSON 저장하고 종료.
 4. **Multidisciplinary 재분류**: CR 데이터 부재로 미적용. 2026년 데이터 수집 시 CR 포함 시 적용 가능.
 5. **MNCS 한계**: MNCS 분모가 한국 전체 평균TC(global 평균이 아님). 국제 표준 CNCI/FWCI는 글로벌 평균 기준이지만 현재 글로벌 데이터 미보유. 대시보드에 한계 명시.
-6. **국제 비교 정합성**: 프로그램 간 예산 범위·기간·논문 집계 방법 상이. 기간 매칭 비교(overlap period)로 기간 불일치 보정, 10억원당 정규화로 규모 차이 보정. 2008-2018 SCIE 데이터 부재 구간은 `caveat` 경고 자동 부여. 대시보드에 한계 박스 표시.
+6. **국제 비교 정합성**: 프로그램 간 예산 범위·기간·논문 집계 방법 상이. 기간 매칭 비교(overlap period)로 기간 불일치 보정, 10억원당 정규화로 규모 차이 보정. 데이터 집계 시작(2011)보다 이른 운영개시 프로그램(예: HECToR 2008~)은 겹치는 기간이 축소되어 `caveat` 경고 자동 부여. 대시보드에 한계 박스 표시.
+
+10. **(해소) 2025년 직접논문 과소집계 → C1 복원**: 기관 연결 xlsx(`기관명데이터.xlsx`, 2/10)가 2025 논문을 ~11%(20,982행)만 포함했고 2025 기관연결 xlsx는 더 이상 수집되지 않음. `institution_mappings.json`(관리도구 수동 이명매핑)은 기관**명 정규화**용이라 논문×기관 **연결 행**을 만들지 못해 직접논문 보정과 무관. → **`build_inst_2025_c1.py`(신규)** 로 `wos_data.pkl`의 C1(저자주소)에서 "South Korea" 기관을 파싱, 기존 `org→org_alias` 사전 + `institution_mappings.json` 오버레이로 정규화하여 2025 논문×기관 연결을 복원(`generated/2025/wos_institutions.pkl`, 20,982→158,957행, 커버리지 ~83%). 소속 UT KISTI 8→153·KBSI 55→432·IBS 91→1069, 직접논문 2025 KISTI 5→47·KBSI→256·IBS→360(평년 수준 복구). 매년 재현: `python3 build_inst_2025_c1.py --year YYYY` 후 `compute.py --version YYYY` 재실행. **caveat**: Clarivate 공식 기관 export가 아닌 C1 자동복원 — established 국내기관은 정확, 미매칭 국내 long-tail ~2%(신설기관 등)는 org명 폴백. 유발논문(사사기반)은 영향 없음.
+
+11. **JCR/JIF 2024-2025 미수집**: report_2026에 JCR 폴더 미포함. `jcr_jif.pkl`은 2008-2023 기준 유지 → 학술지 분석(sec1_5/4_5/7_5)의 JIF·Q1 분위는 2023년까지만 매칭. 2024-2025 발표 논문의 JIF는 최근 가용 연도로 폴백.
 7. **C1 필드 국가명 파싱**: WoS C1 필드에서 국가명 추출 시 `", "` 분리 후 마지막 토큰 사용. 대형 공동연구(CDF, CMS 등)에서 저자 이니셜(예: `"Hou, S."` → `"S"`)이 국가로 오인되는 버그가 있었음. `len(country) >= 4` 필터로 해결 (WoS 최단 국가명: IRAN, PERU, CUBA, OMAN = 4자). sec1_4, sec2_6, sec4_4, sec5_6, sec7_4, sec8_6 6곳에 적용.
 8. **IBS 인력 생산성 제외**: IBS는 NST(국가과학기술연구회) 소관 출연연이 아니므로 인력 CSV에 포함되지 않음. sec9에는 인력 생산성 분석(sec6_4 대응)이 없음.
 9. **PAL 직접논문 분리 불가**: PAL(포항가속기연구소)은 WoS에서 POSTECH 하위기관으로 분류(`org_alias = "POSTECH"`)되어 직접논문 분리가 불가능. 유발논문(사사표기 기반)만 분석. `\bPAL\b` 단독 키워드는 오탐률이 높아 사용하지 않음.
