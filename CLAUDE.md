@@ -21,7 +21,7 @@ KISTI(한국과학기술정보연구원)의 논문 성과와 인프라 유발 �
 KISTI_Policy/
 ├── CLAUDE.md                    # 이 파일
 ├── compute.py                   # 데이터 전처리: pickle 로딩 → 분석 → data_cache.json 생성
-├── build_inst_2025_c1.py        # WoS C1(저자주소)에서 연도별 논문×기관 연결 복원 → generated/{ver}/wos_institutions.pkl (제약 #10)
+├── build_inst_2025_c1.py        # (레거시) WoS C1에서 논문×기관 연결 복원. 리눅스 서버는 KISTEP c1fill 오버레이 사용 → 제약 #10
 ├── app.py                       # Flask 서버 (port 5002)
 ├── scan_kbsi_induced.py         # KBSI 유발논문 탐색 → kbsi_induced_papers.json 생성
 ├── scan_ibs_induced.py          # IBS 유발논문 탐색 → ibs_induced_papers.json 생성
@@ -147,9 +147,9 @@ python3 KISTI_Policy/app.py
 **분류 원칙**: 사사표기(FU/FX)에 인프라 키워드가 있으면 소속 공저자 유무와 무관하게 **유발논문으로 분류**. 중복분(소속+사사)은 직접논문에서 제외.
 
 > **기준**: 2011-2025년 데이터 (report_2026 raw, SCIE+SSCI+AHCI). 직접논문(소속기반) 2025년분은
-> 기관 연결 xlsx(`기관명데이터.xlsx`)가 2025를 11%만 포함해 과소집계였으나, **`build_inst_2025_c1.py`로
-> wos_data의 C1(저자주소)에서 2025 논문×기관 연결을 복원**(→ `generated/2025/wos_institutions.pkl`)하여 **해소**됨.
-> 상세: `build_inst_2025_c1.py` 및 제약 #10 참조.
+> 기관 연결 xlsx(`기관명데이터.xlsx`)가 2025를 11%만 포함해 과소집계였으나, **KISTEP이 생성한
+> C1 보완 오버레이(`generated/2026/wos_institutions_c1fill.pkl`, 144,000행)를 compute.py가 master에
+> 병합**하여 커버리지 11%→100%로 **해소**됨. 상세: 제약 #10 참조.
 
 ```
 KISTI 소속 UT (inst_data에서 org_alias 매칭)
@@ -339,7 +339,7 @@ PAL 유발논문 UT (data_2025/pal_induced_papers.json) → 3,359건 (직접논�
 
 ## 현재 데이터 기준 통계 (2011-2025년 데이터, report_2026)
 
-> 직접논문 2025년분은 C1(저자주소) 복원으로 정상화됨(`build_inst_2025_c1.py`, 제약 #10 참조).
+> 직접논문 2025년분은 C1(저자주소) 보완 오버레이 병합으로 정상화됨(제약 #10 참조).
 
 | 항목 | KISTI | KBSI | IBS | PAL |
 |------|-------|------|-----|-----|
@@ -434,9 +434,9 @@ PAL 유발논문 UT (data_2025/pal_induced_papers.json) → 3,359건 (직접논�
 5. **MNCS 한계**: MNCS 분모가 한국 전체 평균TC(global 평균이 아님). 국제 표준 CNCI/FWCI는 글로벌 평균 기준이지만 현재 글로벌 데이터 미보유. 대시보드에 한계 명시.
 6. **국제 비교 정합성**: 프로그램 간 예산 범위·기간·논문 집계 방법 상이. 기간 매칭 비교(overlap period)로 기간 불일치 보정, 10억원당 정규화로 규모 차이 보정. 데이터 집계 시작(2011)보다 이른 운영개시 프로그램(예: HECToR 2008~)은 겹치는 기간이 축소되어 `caveat` 경고 자동 부여. 대시보드에 한계 박스 표시.
 
-10. **(해소) 2025년 직접논문 과소집계 → C1 복원**: 기관 연결 xlsx(`기관명데이터.xlsx`, 2/10)가 2025 논문을 ~11%(20,982행)만 포함했고 2025 기관연결 xlsx는 더 이상 수집되지 않음. `institution_mappings.json`(관리도구 수동 이명매핑)은 기관**명 정규화**용이라 논문×기관 **연결 행**을 만들지 못해 직접논문 보정과 무관. → **`build_inst_2025_c1.py`(신규)** 로 `wos_data.pkl`의 C1(저자주소)에서 "South Korea" 기관을 파싱, 기존 `org→org_alias` 사전 + `institution_mappings.json` 오버레이로 정규화하여 2025 논문×기관 연결을 복원(`generated/2025/wos_institutions.pkl`, 20,982→158,957행, 커버리지 ~83%). 소속 UT KISTI 8→153·KBSI 55→432·IBS 91→1069, 직접논문 2025 KISTI 5→47·KBSI→256·IBS→360(평년 수준 복구). 매년 재현: `python3 build_inst_2025_c1.py --year YYYY` 후 `compute.py --version YYYY` 재실행. **caveat**: Clarivate 공식 기관 export가 아닌 C1 자동복원 — established 국내기관은 정확, 미매칭 국내 long-tail ~2%(신설기관 등)는 org명 폴백. 유발논문(사사기반)은 영향 없음.
+10. **(해소) 2025년 직접논문 과소집계 → C1 보완 오버레이 병합**: 기관 연결 xlsx(`기관명데이터.xlsx`, 2/10)가 2025 논문을 ~11%(20,982행)만 포함했고 2025 기관연결 xlsx는 더 이상 수집되지 않음. `institution_mappings.json`(관리도구 수동 이명매핑)은 기관**명 정규화**용이라 논문×기관 **연결 행**을 만들지 못해 직접논문 보정과 무관. → **해결(현행)**: KISTEP이 `preprocess_wos.py --fill-inst-c1`(KISTEP 커밋 9f7259c)로 생성한 **`generated/2026/wos_institutions_c1fill.pkl`(144,000행)** 을 `compute.py`의 `load_data()`가 master 로딩 직후 `extend`로 병합한다(KISTEP `build_report.load_wos_preprocessed()`와 동일 로직, master와 UT 비중복 → 이중집계 없음, `optional=True`로 파일 없으면 조용히 스킵). 커버리지 11%→**100%**, 직접논문 2025 KISTI 5→**47**·KBSI→**256**·IBS→**359**(평년 수준 복구). 매년 재현: KISTEP에서 `preprocess_wos.py --fill-inst-c1`(Step 8) 실행 → `KISTEP_BASE=<경로> python3 compute.py --version YYYY --start-year 2011 --end-year 2025`. **caveat**: Clarivate 공식 기관 export가 아닌 C1 자동복원 — established 국내기관은 정확, 미매칭 국내 long-tail은 org명 폴백. 유발논문(사사기반)은 영향 없음. *(레거시: `build_inst_2025_c1.py`는 동일 목표의 독립 재구현으로 커버리지 ~83%. c1fill 오버레이가 있으면 불필요.)*
 
-11. **JCR/JIF 2024-2025 미수집**: report_2026에 JCR 폴더 미포함. `jcr_jif.pkl`은 2008-2023 기준 유지 → 학술지 분석(sec1_5/4_5/7_5)의 JIF·Q1 분위는 2023년까지만 매칭. 2024-2025 발표 논문의 JIF는 최근 가용 연도로 폴백.
+11. **(해소) JCR/JIF 2024-2025**: 구 데이터는 2008-2023까지만이라 학술지 분석(sec1_5/4_5/7_5)의 JIF·Q1 분위가 2023년까지만 매칭됐으나, `generated/2026/jcr_jif.pkl`이 **2011-2025 전 연도(2024·2025 포함, 각 ~13,000 ISSN)** 를 커버해 해소됨. `--version 2026` 실행 시 자동 적용.
 7. **C1 필드 국가명 파싱**: WoS C1 필드에서 국가명 추출 시 `", "` 분리 후 마지막 토큰 사용. 대형 공동연구(CDF, CMS 등)에서 저자 이니셜(예: `"Hou, S."` → `"S"`)이 국가로 오인되는 버그가 있었음. `len(country) >= 4` 필터로 해결 (WoS 최단 국가명: IRAN, PERU, CUBA, OMAN = 4자). sec1_4, sec2_6, sec4_4, sec5_6, sec7_4, sec8_6 6곳에 적용.
 8. **IBS 인력 생산성 제외**: IBS는 NST(국가과학기술연구회) 소관 출연연이 아니므로 인력 CSV에 포함되지 않음. sec9에는 인력 생산성 분석(sec6_4 대응)이 없음.
 9. **PAL 직접논문 분리 불가**: PAL(포항가속기연구소)은 WoS에서 POSTECH 하위기관으로 분류(`org_alias = "POSTECH"`)되어 직접논문 분리가 불가능. 유발논문(사사표기 기반)만 분석. `\bPAL\b` 단독 키워드는 오탐률이 높아 사용하지 않음.
