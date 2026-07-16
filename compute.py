@@ -6,6 +6,7 @@ pickle 로딩 → KISTI 논문/유발논문 분류 → 섹션별 통계 → data
 import argparse
 import csv
 import json
+import os
 import pickle
 import re
 import sys
@@ -15,7 +16,20 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-DEFAULT_BASE = Path("/Users/kimsuntae/KISTEP")
+
+def _default_base() -> Path:
+    """KISTEP 루트 자동 탐지 — 환경변수 KISTEP_BASE > 존재하는 후보 > 맥 경로.
+    맥/리눅스 서버 양쪽에서 --base 없이 동작한다."""
+    env = os.environ.get("KISTEP_BASE")
+    if env:
+        return Path(env)
+    for cand in (Path("/Users/kimsuntae/KISTEP"), Path.home() / "KISTEP"):
+        if cand.exists():
+            return cand
+    return Path("/Users/kimsuntae/KISTEP")
+
+
+DEFAULT_BASE = _default_base()
 DEFAULT_OUT = Path(__file__).parent / "data_cache.json"
 
 
@@ -44,12 +58,14 @@ class RunConfig:
         return f"{self.start_year}-{self.end_year}"
 
 
-def resolve_file(filename: str, config: RunConfig) -> Path:
+def resolve_file(filename: str, config: RunConfig, optional: bool = False) -> Optional[Path]:
     """파일 경로 해석 — 우선순위: 프로젝트 로컬(data_{version}/, 프로젝트 루트)
     → snapshot → generated/{version}/ → generated/master/ → KISTEP 루트.
 
     2026 현행화: 재생성한 산출물(유발논문 JSON 등)은 이 프로젝트의 data_{version}/ 에
-    저장하므로 KISTEP 구버전보다 우선 인식된다. 거대 pickle은 프로젝트에 없어 자연히 폴백."""
+    저장하므로 KISTEP 구버전보다 우선 인식된다. 거대 pickle은 프로젝트에 없어 자연히 폴백.
+
+    optional=True면 못 찾을 때 예외 대신 None (있으면 쓰는 오버레이용)."""
     project = Path(__file__).resolve().parent
     candidates = [
         project / f"data_{config.data_version}" / filename,
@@ -64,6 +80,8 @@ def resolve_file(filename: str, config: RunConfig) -> Path:
     for p in candidates:
         if p.exists() and not p.is_symlink() or (p.is_symlink() and p.resolve().exists()):
             return p
+    if optional:
+        return None
     tried = "\n  ".join(str(c) for c in candidates)
     raise FileNotFoundError(f"{filename} 을 찾을 수 없습니다.\n검색 경로:\n  {tried}")
 
@@ -390,6 +408,16 @@ def load_data(config: RunConfig):
           + (f", 스냅샷: {config.snapshot}" if config.snapshot else ""))
     wos_data = pickle.load(open(resolve_file("wos_data.pkl", config), "rb"))
     inst_data = pickle.load(open(resolve_file("wos_institutions.pkl", config), "rb"))
+    # 기관명 엑셀 미제공 연도(2026 사이클의 2025 논문)의 C1 보완 오버레이 병합.
+    # KISTEP build_report.load_wos_preprocessed()와 동일 로직. master(사람 정제분)에
+    # UT가 없는 논문의 기관 행을 C1에서 생성한 것으로, master와 UT 비중복 → 이중집계 없음.
+    # 이 파일이 없으면(맥 로컬 구성 등) 조용히 스킵 → master만 사용(구 동작).
+    _c1fill_path = resolve_file("wos_institutions_c1fill.pkl", config, optional=True)
+    if _c1fill_path is not None:
+        _c1fill = pickle.load(open(_c1fill_path, "rb"))
+        inst_data.extend(_c1fill)
+        print(f"  기관 C1 보완 오버레이 병합: {len(_c1fill):,}건 ({_c1fill_path.name})")
+        del _c1fill
     jcr_data = pickle.load(open(resolve_file("jcr_jif.pkl", config), "rb"))
     print(f"  wos_data: {len(wos_data):,}건")
     print(f"  inst_data: {len(inst_data):,}건")
