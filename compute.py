@@ -34,6 +34,58 @@ DEFAULT_OUT = Path(__file__).parent / "data_cache.json"
 
 
 # ═══════════════════════════════════════════════════════════
+# 글로벌 FWCI 인덱스 (OpenAlex, build_fwci_index.py 산출) — 부가지표
+# UT -> {"fwci","top1","top10","cited_by","oa_year"}. 없으면 빈 dict → FWCI 미표시.
+# MNCS(한국 분모)의 국제표준 보완: 세계 평균 기준 영향력(제약 #5).
+# ═══════════════════════════════════════════════════════════
+_FWCI_INDEX: dict = {}
+
+
+def _median(xs):
+    n = len(xs)
+    if not n:
+        return None
+    s = sorted(xs)
+    return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
+
+
+def _fwci_stats(records, config):
+    """유발/직접 논문 레코드(UT·PY 보유) → 글로벌 FWCI 집계(overall).
+    기준: FWCI 수치가 있는 논문(n_fwci)을 분모로 삼아 클라이언트 기간재계산과
+    정의를 일치시킨다. 인덱스 미로딩/매칭0이면 None (대시보드에서 패널 숨김)."""
+    if not _FWCI_INDEX:
+        return None
+    fwcis, top10, top1, total = [], 0, 0, 0
+    for r in records:
+        py = r.get("PY", 0)
+        if not (isinstance(py, int) and config.start_year <= py <= config.end_year):
+            continue
+        total += 1
+        e = _FWCI_INDEX.get(r.get("UT"))
+        f = e.get("fwci") if e else None
+        if f is None:
+            continue
+        fwcis.append(f)
+        if e.get("top1"):
+            top1 += 1
+            top10 += 1
+        elif e.get("top10"):
+            top10 += 1
+    n = len(fwcis)
+    if not n:
+        return None
+    return {
+        "total": total,
+        "n_fwci": n,
+        "coverage_pct": round(n / total * 100, 1) if total else 0,
+        "mean_fwci": round(sum(fwcis) / n, 3),
+        "median_fwci": round(_median(fwcis), 3),
+        "top10_share": round(top10 / n * 100, 1),
+        "top1_share": round(top1 / n * 100, 1),
+    }
+
+
+# ═══════════════════════════════════════════════════════════
 # 실행 설정 (RunConfig)
 # ═══════════════════════════════════════════════════════════
 @dataclass
@@ -487,6 +539,15 @@ def load_data(config: RunConfig):
     pal_induced_path = resolve_file("pal_induced_papers.json", config)
     pal_induced_papers = json.loads(pal_induced_path.read_text(encoding="utf-8"))
     print(f"  PAL 유발논문 JSON: {len(pal_induced_papers):,}건")
+
+    # 글로벌 FWCI 인덱스 로딩 (부가지표, build_fwci_index.py 산출) — 있으면 사용, 없으면 스킵
+    global _FWCI_INDEX
+    _fwci_path = resolve_file("fwci_index.json", config, optional=True)
+    if _fwci_path is not None:
+        _FWCI_INDEX = json.loads(_fwci_path.read_text(encoding="utf-8"))
+        print(f"  FWCI 인덱스(OpenAlex): {len(_FWCI_INDEX):,} UT ({_fwci_path.name})")
+    else:
+        print("  FWCI 인덱스 없음 — 글로벌 FWCI 미표시 (build_fwci_index.py로 생성)")
 
     # HCP 인덱스 로딩 — 프로젝트 로컬(HC 필드 기반, data_{version}/) 우선 → KISTEP 폴백
     project_hcp = Path(__file__).resolve().parent / f"data_{config.data_version}" / "hcp_index.json"
@@ -1208,7 +1269,7 @@ def compute_sec2(pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_field,
             "year": y, "avg_tc": avg_tc, "kr_avg_tc": kr_avg,
             "total_tc": sum(tcs), "paper_count": len(tcs), "hcp_count": hcp_count,
         })
-    result["sec2_5"] = {"years": impact_data}
+    result["sec2_5"] = {"years": impact_data, "fwci": _fwci_stats(pure_induced_records, config)}
     print(f"  2-5 영향력")
 
     # ── 2-6: 협력 네트워크 ──
@@ -1972,7 +2033,7 @@ def compute_sec5(kbsi_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_fie
             "year": y, "avg_tc": avg_tc, "kr_avg_tc": kr_avg,
             "total_tc": sum(tcs), "paper_count": len(tcs), "hcp_count": hcp_count,
         })
-    result["sec5_5"] = {"years": impact_data}
+    result["sec5_5"] = {"years": impact_data, "fwci": _fwci_stats(kbsi_pure_induced_records, config)}
     print(f"  5-5 영향력")
 
     # ── 5-6: 협력 네트워크 ──
@@ -2658,7 +2719,7 @@ def compute_sec8(ibs_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_fiel
             "year": y, "avg_tc": avg_tc, "kr_avg_tc": kr_avg,
             "total_tc": sum(tcs), "paper_count": len(tcs), "hcp_count": hcp_count,
         })
-    result["sec8_5"] = {"years": impact_data}
+    result["sec8_5"] = {"years": impact_data, "fwci": _fwci_stats(ibs_pure_induced_records, config)}
     print(f"  8-5 영향력")
 
     # ── 8-6: 협력 네트워크 ──
@@ -2920,7 +2981,7 @@ def compute_sec10(pal_pure_induced_records, kr_by_year, kr_tc_by_year, kr_by_fie
             "year": y, "avg_tc": avg_tc, "kr_avg_tc": kr_avg,
             "total_tc": sum(tcs), "paper_count": len(tcs), "hcp_count": hcp_count,
         })
-    result["sec10_5"] = {"years": impact_data}
+    result["sec10_5"] = {"years": impact_data, "fwci": _fwci_stats(pal_pure_induced_records, config)}
     print(f"  10-5 영향력")
 
     # ── 10-6: 협력 네트워크 ──
@@ -4764,6 +4825,12 @@ def build_paper_records(kisti_records, pure_induced_records,
             meta = r.get("_induced_meta", {})
             kws = meta.get("keywords", [])
             infra = infra_classify_fn(kws)
+            # 글로벌 FWCI(OpenAlex) — 클라이언트 기간재계산용 콤팩트 필드.
+            # gtop: 1=세계상위1%, 10=세계상위10%(1%아님), 0=해당없음/미매칭.
+            _fe = _FWCI_INDEX.get(ut)
+            _fwci = _fe.get("fwci") if _fe else None
+            _gtop = (1 if (_fe and _fe.get("top1")) else
+                     10 if (_fe and _fe.get("top10")) else 0)
             papers.append({
                 "UT": ut,
                 "PY": r.get("PY", 0),
@@ -4782,6 +4849,8 @@ def build_paper_records(kisti_records, pure_induced_records,
                 "keywords": kws,
                 "FU": r.get("FU", meta.get("FU", "")),
                 "FX": r.get("FX", meta.get("FX", "")),
+                "fwci": _fwci,
+                "gtop": _gtop,
             })
         print(f"  {label} 유발논문 레코드: {len(papers):,}건")
         return papers

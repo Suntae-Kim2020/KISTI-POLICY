@@ -908,6 +908,54 @@ const PALETTE = [COLORS.blue, COLORS.green, COLORS.yellow, COLORS.red,
                  COLORS.teal, COLORS.lime, COLORS.indigo, COLORS.amber];
 
 function num(n) { return n == null ? '0' : Number(n).toLocaleString(); }
+
+// 글로벌 FWCI 집계 (OpenAlex) — 기간필터된 유발논문 배열 → 서버 _fwci_stats와 동일 정의.
+// 각 논문 p: fwci(number|null), gtop(1=세계상위1% / 10=세계상위10% / 0). 인덱스 미생성 시 null.
+function fwciStats(papers) {
+    let n = 0, top10 = 0, top1 = 0, sum = 0; const vals = [];
+    for (const p of papers) {
+        if (typeof p.fwci !== 'number') continue;
+        n++; sum += p.fwci; vals.push(p.fwci);
+        if (p.gtop === 1) { top1++; top10++; }
+        else if (p.gtop === 10) { top10++; }
+    }
+    if (!n) return null;
+    vals.sort((a, b) => a - b);
+    const median = n % 2 ? vals[(n - 1) / 2] : (vals[n / 2 - 1] + vals[n / 2]) / 2;
+    return {
+        total: papers.length,
+        n_fwci: n,
+        coverage_pct: round2(n / papers.length * 100, 1),
+        mean_fwci: round2(sum / n, 3),
+        median_fwci: round2(median, 3),
+        top10_share: round2(top10 / n * 100, 1),
+        top1_share: round2(top1 / n * 100, 1),
+    };
+}
+
+// FWCI KPI 패널 HTML (렌더러 공용). f가 null이면 빈 문자열(패널 숨김).
+function fwciPanel(f) {
+    if (!f) return '';
+    return `
+        <div class="chart-card">
+            <h3>글로벌 영향력 (FWCI · 세계 평균 기준) <span style="font-size:11px;font-weight:400;color:var(--fg2);">OpenAlex · 매칭 ${num(f.n_fwci)}편(${f.coverage_pct}%)</span></h3>
+            <p class="chart-insight">FWCI(Field-Weighted Citation Impact)는 같은 분야·연도·문헌유형의 <b>세계 평균 피인용</b>을 1.0으로 놓은 국제표준 지표다(Scopus FWCI·InCites CNCI와 동일 원리). 대시보드 기본 MNCS가 <b>한국 평균</b> 분모인 것과 달리 세계 기준이라, 국제 비교에 직접 쓸 수 있다. 평균은 소수 초고피인용 논문에 민감하므로 <b>중앙값</b>과 상위% 비중을 함께 본다.</p>
+            <div class="fwci-kpis" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:4px;">
+                <div class="fwci-kpi" style="flex:1;min-width:120px;background:var(--bg2,#1c1c2e);border-radius:8px;padding:14px 12px;text-align:center;">
+                    <div style="font-size:24px;font-weight:700;color:var(--accent,#4ade80);">${f.median_fwci}</div>
+                    <div style="font-size:12px;color:var(--fg2);margin-top:2px;">중앙값 FWCI</div></div>
+                <div class="fwci-kpi" style="flex:1;min-width:120px;background:var(--bg2,#1c1c2e);border-radius:8px;padding:14px 12px;text-align:center;">
+                    <div style="font-size:24px;font-weight:700;color:#a0a0c0;">${f.mean_fwci}</div>
+                    <div style="font-size:12px;color:var(--fg2);margin-top:2px;">평균 FWCI</div></div>
+                <div class="fwci-kpi" style="flex:1;min-width:120px;background:var(--bg2,#1c1c2e);border-radius:8px;padding:14px 12px;text-align:center;">
+                    <div style="font-size:24px;font-weight:700;color:#4dabf7;">${f.top10_share}%</div>
+                    <div style="font-size:12px;color:var(--fg2);margin-top:2px;">세계 상위 10%</div></div>
+                <div class="fwci-kpi" style="flex:1;min-width:120px;background:var(--bg2,#1c1c2e);border-radius:8px;padding:14px 12px;text-align:center;">
+                    <div style="font-size:24px;font-weight:700;color:#f783ac;">${f.top1_share}%</div>
+                    <div style="font-size:12px;color:var(--fg2);margin-top:2px;">세계 상위 1%</div></div>
+            </div>
+        </div>`;
+}
 function pct(n) { return n == null ? '0%' : n + '%'; }
 
 function destroyChart(id) {
@@ -2206,6 +2254,7 @@ renderers.sec2_5 = function(D) {
     const el = document.getElementById('page-sec2_5');
     el.innerHTML = `
         <div class="page-title">2-5. 유발논문 영향력 분석</div>
+        ${fwciPanel(d.fwci)}
         <div class="chart-card"><h3>유발논문 vs 한국 평균 피인용 추이</h3><p class="chart-insight">KISTI 유발논문의 평균 피인용(${D.summary.induced_avg_tc}회)은 한국 전체 평균(${D.summary.kr_avg_tc}회)보다 약 ${round2((D.summary.induced_avg_tc/Math.max(D.summary.kr_avg_tc,0.1)-1)*100,0)}% 높다. KISTI 인프라를 활용한 외부 연구자의 논문이 한국 평균을 상회하는 영향력을 보이며, 이는 인프라 지원이 연구의 질적 향상에도 기여하고 있음을 의미한다.</p><div class="chart-wrap"><canvas id="c2_5_tc"></canvas></div></div>
         <div class="chart-card"><h3>연도별 상위 1% 피인용 논문수 <span style="font-size:11px;font-weight:400;color:var(--fg2);">(자체계산 · Clarivate 공식 HCP 아님)</span></h3><p class="chart-insight">유발논문 중 한국 전체 연도별 피인용 상위 1%에 해당하는 논문 수이다. 유발논문에서도 최상위 피인용 논문이 지속적으로 산출되고 있어, KISTI 인프라가 돌파적(breakthrough) 연구에도 기여하고 있음을 확인할 수 있다.</p><div class="chart-wrap"><canvas id="c2_5_hcp"></canvas></div></div>
     `;
@@ -3208,6 +3257,7 @@ renderers.sec5_5 = function(D) {
     const el = document.getElementById('page-sec5_5');
     el.innerHTML = `
         <div class="page-title">5-5. KBSI 유발논문 영향력 분석</div>
+        ${fwciPanel(d.fwci)}
         <div class="chart-card"><h3>유발논문 vs 한국 평균 피인용 추이</h3><p class="chart-insight">KBSI 유발논문의 평균 피인용(${D.summary.kbsi_induced_avg_tc}회)은 한국 전체 평균(${D.summary.kr_avg_tc}회)과 유사한 수준이다. KISTI 유발논문(${D.summary.induced_avg_tc}회)이 한국 평균을 ${round2((D.summary.induced_avg_tc/Math.max(D.summary.kr_avg_tc,0.1)-1)*100,0)}% 상회하는 것과 대비되며, 두 기관 인프라의 연구 영향력 파급 차이를 보여준다.</p><div class="chart-wrap"><canvas id="c5_5_tc"></canvas></div></div>
         <div class="chart-card"><h3>연도별 상위 1% 피인용 논문수 <span style="font-size:11px;font-weight:400;color:var(--fg2);">(자체계산 · Clarivate 공식 HCP 아님)</span></h3><p class="chart-insight">KBSI 유발논문 중 한국 전체 연도별 피인용 상위 1%에 해당하는 논문 수이다(자체 기준 — Clarivate 공식 HCP와 정의 다름). KISTI 유발논문의 상위 1%와 비교하여 최상위 영향력 논문 생산의 차이를 확인할 수 있다.</p><div class="chart-wrap"><canvas id="c5_5_hcp"></canvas></div></div>
     `;
@@ -4034,6 +4084,7 @@ renderers.sec8_5 = function(D) {
     const el = document.getElementById('page-sec8_5');
     el.innerHTML = `
         <div class="page-title">8-5. IBS 유발논문 영향력 분석</div>
+        ${fwciPanel(d.fwci)}
         <div class="chart-card"><h3>유발논문 vs 한국 평균 피인용 추이</h3><div class="chart-wrap"><canvas id="c8_5_tc"></canvas></div></div>
         <div class="chart-card"><h3>연도별 상위 1% 피인용 논문수 <span style="font-size:11px;font-weight:400;color:var(--fg2);">(자체계산 · Clarivate 공식 HCP 아님)</span></h3><div class="chart-wrap"><canvas id="c8_5_hcp"></canvas></div></div>
     `;
@@ -4408,6 +4459,7 @@ renderers.sec10_5 = function(D) {
     const el = document.getElementById('page-sec10_5');
     el.innerHTML = `
         <div class="page-title">10-5. PAL 유발논문 영향력 분석</div>
+        ${fwciPanel(d.fwci)}
         <div class="chart-card"><h3>유발논문 vs 한국 평균 피인용 추이</h3><div class="chart-wrap"><canvas id="c10_5_tc"></canvas></div></div>
         <div class="chart-card"><h3>연도별 상위 1% 피인용 논문수 <span style="font-size:11px;font-weight:400;color:var(--fg2);">(자체계산 · Clarivate 공식 HCP 아님)</span></h3><div class="chart-wrap"><canvas id="c10_5_hcp"></canvas></div></div>
     `;
@@ -8545,6 +8597,7 @@ function recomputeAllStats(startYear, endYear) {
             }
             return { year: y, avg_tc: avgTc, kr_avg_tc: krAvg, total_tc: tcs.reduce((s,v)=>s+v,0), paper_count: tcs.length, hcp_count: hcp };
         }),
+        fwci: fwciStats(iPapers),
     };
 
     // ── sec2_6: 협력 네트워크 ──
@@ -8825,6 +8878,7 @@ function recomputeAllStats(startYear, endYear) {
             }
             return { year: y, avg_tc: avgTc, kr_avg_tc: krAvg, total_tc: tcs.reduce((s,v)=>s+v,0), paper_count: tcs.length, hcp_count: hcp };
         }),
+        fwci: fwciStats(biPapers),
     };
 
     // ── sec5_6: 협력 네트워크 ──
@@ -9092,6 +9146,7 @@ function recomputeAllStats(startYear, endYear) {
             if (tcs.length) { const sorted = [...tcs].sort((a,b)=>b-a); const thr = sorted[Math.max(0, Math.ceil(tcs.length*0.01)-1)]||0; hcp = tcs.filter(t=>t>=thr&&t>0).length; }
             return { year: y, avg_tc: avg, kr_avg_tc: krAvg, total_tc: tcs.reduce((s,v)=>s+v,0), paper_count: tcs.length, hcp_count: hcp };
         }),
+        fwci: fwciStats(ibsiPapers),
     };
 
     // ── sec9_1: KISTI vs IBS 직접 비교 ──
@@ -9204,6 +9259,7 @@ function recomputeAllStats(startYear, endYear) {
         if (tcs.length) { const st = [...tcs].sort((a,b)=>b-a); const idx = Math.max(1,Math.floor(st.length*0.01)); const th = st[idx-1]; hcp = tcs.filter(t=>t>=th&&t>0).length; }
         return { year: y, avg_tc: avg, kr_avg_tc: krAvg, total_tc: tcs.reduce((s,v)=>s+v,0), paper_count: tcs.length, hcp_count: hcp };
     })};
+    DATA.sec10_5.fwci = fwciStats(palPapers);
 
     // ═══ sec11_1: 질적 우수성 종합 비교 재계산 ═══
     function _calcQ1(papers) {
