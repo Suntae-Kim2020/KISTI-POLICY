@@ -292,6 +292,25 @@ body {
     margin: 0 0 12px;
     text-align: left;
 }
+/* 표·그림 하단 주석: 데이터 출처 / 산출 방식 / 인사이트 */
+.src-box {
+    margin: 14px 0 2px;
+    padding: 12px 14px;
+    background: rgba(108,140,255,0.06);
+    border-left: 3px solid var(--accent, #6c8cff);
+    border-radius: 0 6px 6px 0;
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: #c0c8e0;
+}
+.src-box > div { margin: 2px 0; }
+.src-box .src-label {
+    display: inline-block;
+    min-width: 74px;
+    font-weight: 700;
+    color: #8fa4ff;
+    margin-right: 6px;
+}
 .chart-wrap { position: relative; width: 100%; }
 .chart-wrap canvas { width: 100% !important; }
 .chart-row {
@@ -857,6 +876,7 @@ mark.hl-kbsi { background: rgba(76,175,80,0.35); color: var(--green); border-rad
         <a class="nav-item insight-item" data-page="ins_intl" onclick="showPage('ins_intl')">I-4. 국제 협력 질적 비교</a>
         <a class="nav-item insight-item" data-page="ins_counterfactual" onclick="showPage('ins_counterfactual')">I-5. "KISTI가 없었다면" 반사실 시뮬레이션</a>
         <a class="nav-item insight-item" data-page="ins_field_quality" onclick="showPage('ins_field_quality')">I-6. 분야별 질적 비교 (4기관)</a>
+        <a class="nav-item insight-item" data-page="ins_impact" onclick="showPage('ins_impact')">I-7. 영향력 종합 비교 (4기관)</a>
         </div>
     </nav>
     <div class="main" id="mainContent">
@@ -931,6 +951,22 @@ function fwciStats(papers) {
         top10_share: round2(top10 / n * 100, 1),
         top1_share: round2(top1 / n * 100, 1),
     };
+}
+
+// 표·그림 하단 주석 박스 (데이터 출처 / 산출 방식 / 인사이트).
+function srcBox(source, method, insight) {
+    return `<div class="src-box">
+        <div><span class="src-label">데이터 출처</span>${source}</div>
+        <div><span class="src-label">산출 방식</span>${method}</div>
+        <div><span class="src-label">인사이트</span>${insight}</div>
+    </div>`;
+}
+// 차트 카드(캔버스 소속) 맨 아래에 주석 박스 추가.
+function addSrcBox(canvasId, source, method, insight) {
+    const c = document.getElementById(canvasId);
+    if (!c) return;
+    const card = c.closest('.chart-card');
+    if (card) card.insertAdjacentHTML('beforeend', srcBox(source, method, insight));
 }
 
 // FWCI KPI 패널 HTML (렌더러 공용). f가 null이면 빈 문자열(패널 숨김).
@@ -1207,7 +1243,8 @@ async function exportAll() {
         'ins_fields',
         'ins_intl',
         'ins_counterfactual',
-        'ins_field_quality'
+        'ins_field_quality',
+        'ins_impact'
     ];
 
     // 현재 상태 저장
@@ -1654,7 +1691,8 @@ function buildPages() {
         'ins_fields',
         'ins_intl',
         'ins_counterfactual',
-        'ins_field_quality'];
+        'ins_field_quality',
+        'ins_impact'];
     pages.forEach(id => {
         const div = document.createElement('div');
         div.className = 'page';
@@ -7895,6 +7933,126 @@ renderers.ins_field_quality = function(D) {
             },
         });
     }
+};
+
+// 💡 정책 인사이트 — I-7. 영향력 종합 비교 (4기관, 글로벌 FWCI 중심)
+renderers.ins_impact = function(D) {
+    const el = document.getElementById('page-ins_impact');
+    const s = D.summary || {};
+    const krAvg = s.kr_avg_tc || 0;
+    // 표시순서: KISTI, KBSI, IBS, PAL. FWCI는 각 유발 영향력 섹션(secX_5.fwci)에서.
+    const ORG = [
+        { k:'KISTI', c: COLORS.blue,   f: D.sec2_5  && D.sec2_5.fwci,  papers: s.induced_papers,      avgtc: s.induced_avg_tc },
+        { k:'KBSI',  c: COLORS.green,  f: D.sec5_5  && D.sec5_5.fwci,  papers: s.kbsi_induced_papers, avgtc: s.kbsi_induced_avg_tc },
+        { k:'IBS',   c: COLORS.orange, f: D.sec8_5  && D.sec8_5.fwci,  papers: s.ibs_induced_papers,  avgtc: s.ibs_induced_avg_tc },
+        { k:'PAL',   c: COLORS.pink,   f: D.sec10_5 && D.sec10_5.fwci, papers: s.pal_induced_papers,  avgtc: s.pal_induced_avg_tc },
+    ];
+    const labels = ORG.map(o => o.k);
+    const fv = (o, key) => (o.f && o.f[key] != null) ? o.f[key] : null;
+    const disp = v => v != null ? v : '—';
+    const hasF = ORG.some(o => o.f);
+    // 순위(중앙값 FWCI)
+    const ranked = ORG.filter(o => fv(o,'median_fwci')!=null).slice().sort((a,b)=>fv(b,'median_fwci')-fv(a,'median_fwci'));
+    const topOrg = ranked[0] ? ranked[0].k : '—';
+
+    el.innerHTML = `
+        <div class="page-title">💡 I-7. 영향력 종합 비교 (4기관)</div>
+        <p class="chart-insight" style="font-size:14px;">KISTI·KBSI·IBS·PAL <b>유발논문(사사표기 기반)</b>의 연구 영향력을 <b>세계 평균 기준 FWCI</b>로 한 화면에서 비교한다. 대시보드 기본 지표(MNCS)가 한국 평균 분모라 국제 비교가 어려웠던 한계를, OpenAlex의 글로벌 FWCI·세계 피인용 백분위로 보완한 종합 페이지다. 각 표·그림 아래에 데이터 출처·산출 방식·인사이트를 함께 표기한다. ${hasF ? '' : '<b style="color:#ef5350;">(FWCI 인덱스 미생성 — 일부 지표 미표시)</b>'}</p>
+
+        <div class="chart-card"><h3>① 글로벌 FWCI 비교 (중앙값 · 평균)</h3>
+            <p class="chart-insight">FWCI = 1.0이 세계 평균이다. 중앙값은 전형적 논문의 영향력, 평균은 소수 초고피인용 논문에 민감한 값이다.</p>
+            <div class="chart-wrap"><canvas id="ins7_fwci"></canvas></div></div>
+
+        <div class="chart-card"><h3>② 세계 최상위 논문 비중 (상위 10% · 상위 1%)</h3>
+            <p class="chart-insight">각 기관 유발논문 중 세계 피인용 상위 10%·상위 1%에 든 논문의 비중이다. 최상위 비중이 높을수록 돌파적(breakthrough) 연구 밀도가 크다.</p>
+            <div class="chart-wrap"><canvas id="ins7_top"></canvas></div></div>
+
+        <div class="chart-card"><h3>③ 평균 피인용 vs 한국 전체 평균</h3>
+            <p class="chart-insight">WoS 실측 평균 피인용과 한국 전체 평균(${disp(krAvg)}회)의 비교다. 한국 평균 대비 배수는 표에서 확인할 수 있다.</p>
+            <div class="chart-wrap"><canvas id="ins7_tc"></canvas></div></div>
+
+        <div class="chart-card"><h3>④ 영향력 종합 비교표</h3>
+            <div id="ins7_table_wrap" style="overflow-x:auto;"></div>
+        </div>
+    `;
+
+    const dl = { datalabels: { display: true, anchor:'end', align:'end', color:'#c0c8e0', font:{size:11},
+        formatter: v => v==null ? '' : v } };
+
+    // ① FWCI 중앙값·평균
+    destroyChart('ins7_fwci');
+    charts['ins7_fwci'] = new Chart(document.getElementById('ins7_fwci'), {
+        type: 'bar',
+        data: { labels, datasets: [
+            { label:'중앙값 FWCI', data: ORG.map(o=>fv(o,'median_fwci')), backgroundColor: COLORS.blue },
+            { label:'평균 FWCI',  data: ORG.map(o=>fv(o,'mean_fwci')),   backgroundColor: COLORS.cyan },
+        ]},
+        options: { responsive:true, plugins: dl, scales:{ y:{ beginAtZero:true, title:{display:true,text:'FWCI (세계평균=1.0)'} } } }
+    });
+    addDataTable('ins7_fwci', ['기관','중앙값 FWCI','평균 FWCI','FWCI 매칭수','커버리지(%)'],
+        ORG.map(o => [o.k, disp(fv(o,'median_fwci')), disp(fv(o,'mean_fwci')), o.f?num(o.f.n_fwci):'—', o.f?o.f.coverage_pct:'—']));
+    addSrcBox('ins7_fwci',
+        'OpenAlex works API (fwci 필드) — 4기관 유발논문 DOI 매칭분 (커버리지 ~99%).',
+        '각 논문 FWCI = 피인용수 ÷ (동일 분야·연도·문헌유형의 <b>세계 평균 피인용</b>). 기관별 중앙값·평균을 산출. Scopus FWCI·InCites CNCI와 동일 원리.',
+        `중앙값 FWCI 1위는 <b>${topOrg}</b>. 평균이 중앙값보다 크게 높은 기관은 소수 초고피인용(거대과학·HCP) 논문이 평균을 끌어올린 우편향으로, 중앙값이 더 대표성 있다.`);
+
+    // ② 세계 상위 10%/1%
+    destroyChart('ins7_top');
+    charts['ins7_top'] = new Chart(document.getElementById('ins7_top'), {
+        type: 'bar',
+        data: { labels, datasets: [
+            { label:'세계 상위 10% (%)', data: ORG.map(o=>fv(o,'top10_share')), backgroundColor: COLORS.indigo },
+            { label:'세계 상위 1% (%)',  data: ORG.map(o=>fv(o,'top1_share')),  backgroundColor: COLORS.red },
+        ]},
+        options: { responsive:true, plugins: dl, scales:{ y:{ beginAtZero:true, title:{display:true,text:'비중 (%)'} } } }
+    });
+    addDataTable('ins7_top', ['기관','세계 상위10%(%)','세계 상위1%(%)'],
+        ORG.map(o => [o.k, disp(fv(o,'top10_share')), disp(fv(o,'top1_share'))]));
+    addSrcBox('ins7_top',
+        'OpenAlex works API (citation_normalized_percentile 필드).',
+        '각 논문의 세계 피인용 백분위로 상위 10%·상위 1% 여부를 판정 → 기관별 해당 논문 비중(%). 세계 무작위 기대치는 각각 10%·1%.',
+        `상위 1% 비중이 기대치(1%)의 수 배인 기관은 세계적 파급 논문 밀도가 높다는 뜻이다. KISTI·IBS가 상위 1%에서 두드러진다.`);
+
+    // ③ 평균 피인용 vs 한국 평균
+    destroyChart('ins7_tc');
+    charts['ins7_tc'] = new Chart(document.getElementById('ins7_tc'), {
+        type: 'bar',
+        data: { labels, datasets: [
+            { label:'유발논문 평균 피인용', data: ORG.map(o=>o.avgtc), backgroundColor: ORG.map(o=>o.c) },
+        ]},
+        options: { responsive:true, plugins: dl, scales:{ y:{ beginAtZero:true, title:{display:true,text:'평균 피인용 (회)'} } } }
+    });
+    addDataTable('ins7_tc', ['기관','평균 피인용(회)','한국 평균 대비(배)'],
+        ORG.map(o => [o.k, disp(o.avgtc), krAvg?round2(o.avgtc/krAvg,2):'—']));
+    addSrcBox('ins7_tc',
+        'WoS 피인용수(TC) — 유발논문. 한국 전체 평균 = 한국 SCIE/SSCI/AHCI 전체 논문의 ΣTC ÷ 편수.',
+        '기관별 유발논문 평균 피인용을 한국 전체 평균(' + disp(krAvg) + '회)으로 나눠 배수를 산출. FWCI와 달리 분야 정규화는 하지 않은 실측값이다.',
+        'FWCI(세계·분야 정규화)와 평균 피인용(실측)을 함께 보면, 분야 구성 효과를 배제한 순수 영향력과 규모 효과를 구분해 해석할 수 있다.');
+
+    // ④ 종합 비교표
+    const rows = ORG.map(o => `<tr>
+        <td style="font-weight:600;color:${o.c};">${o.k}</td>
+        <td>${num(o.papers)}</td>
+        <td>${disp(o.avgtc)}</td>
+        <td>${krAvg?round2(o.avgtc/krAvg,2)+'배':'—'}</td>
+        <td>${disp(fv(o,'median_fwci'))}</td>
+        <td>${disp(fv(o,'mean_fwci'))}</td>
+        <td>${disp(fv(o,'top10_share'))}${fv(o,'top10_share')!=null?'%':''}</td>
+        <td>${disp(fv(o,'top1_share'))}${fv(o,'top1_share')!=null?'%':''}</td>
+        <td>${o.f?o.f.coverage_pct+'%':'—'}</td>
+    </tr>`).join('');
+    document.getElementById('ins7_table_wrap').innerHTML = `
+        <table class="data-table" style="width:100%;">
+            <thead><tr>
+                <th>기관</th><th>유발논문수</th><th>평균 피인용</th><th>한국평균 대비</th>
+                <th>중앙값 FWCI</th><th>평균 FWCI</th><th>세계 상위10%</th><th>세계 상위1%</th><th>FWCI 커버리지</th>
+            </tr></thead><tbody>${rows}</tbody>
+        </table>
+        ${srcBox(
+            'WoS(논문수·피인용) + OpenAlex(FWCI·백분위) 통합. 유발논문 = 사사표기(FU/FX)에 각 기관 인프라 키워드가 검출된 논문.',
+            '유발논문수·평균 피인용은 WoS 집계, 한국평균 대비는 실측 배수, FWCI·세계상위%는 OpenAlex 글로벌 지표. 기간 슬라이더에 연동 재계산.',
+            `종합적으로 <b>${topOrg}</b>가 세계 기준 영향력에서 선두이며, 4기관 모두 세계 평균(FWCI 1.0)을 상회한다. 규모(논문수)와 질(FWCI)을 함께 보면 기관별 인프라 성격 차이가 드러난다.`
+        )}`;
 };
 
 // I-6 인터랙션 핸들러 — 상태 갱신 후 재렌더 (showPage의 rendered 플래그 우회)
