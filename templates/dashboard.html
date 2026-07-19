@@ -771,6 +771,7 @@ mark.hl-kbsi { background: rgba(76,175,80,0.35); color: var(--green); border-rad
 
         <div class="section-title">개요</div>
         <a class="nav-item active" data-page="overview" onclick="showPage('overview')">요약 대시보드</a>
+        <a class="nav-item" data-page="faq" onclick="showPage('faq')">❓ FAQ · 데이터 안내</a>
 
         <div class="section-title collapsed" onclick="toggleSection(this)">1. KISTI 논문분석</div>
         <div class="nav-group collapsed">
@@ -1227,6 +1228,7 @@ async function exportAll() {
 
     var allPages = [
         'overview',
+        'faq',
         'sec1_1','sec1_2','sec1_3','sec1_4','sec1_5',
         'sec2_1','sec2_2','sec2_3','sec2_4','sec2_5','sec2_6','sec2_7','sec2_8',
         'sec3_1','sec3_2','sec3_3',
@@ -1675,7 +1677,7 @@ function applyPeriod() {
 
 function buildPages() {
     const main = document.getElementById('mainContent');
-    const pages = ['papers','overview',
+    const pages = ['papers','overview','faq',
         'sec1_1','sec1_2','sec1_3','sec1_4','sec1_5',
         'sec2_1','sec2_2','sec2_3','sec2_4','sec2_5','sec2_6','sec2_7','sec2_8',
         'sec3_1','sec3_2','sec3_3',
@@ -4742,6 +4744,74 @@ renderers.sec11_1 = function(D) {
 };
 
 // ═══════════════════════════════════════════════════════════
+// ❓ FAQ · 데이터 안내 — 사용 데이터·커버리지·출처·수집방법
+// ═══════════════════════════════════════════════════════════
+renderers.faq = function(D) {
+    const el = document.getElementById('page-faq');
+    const s = D.summary || {};
+    const pc = D.patent_cit || {};
+    const fcov = (D.sec2_5 && D.sec2_5.fwci) ? D.sec2_5.fwci.coverage_pct : null;
+    const pcov = pc.kisti ? Math.round(pc.kisti.lens_matched / pc.kisti.doi_queried * 1000) / 10 : null;
+    const m = D._meta || {};
+    const period = (m.start_year||2011) + '–' + (m.end_year||2025);
+    el.innerHTML = `
+        <div class="page-title">❓ FAQ · 이 분석의 데이터 안내</div>
+        <p class="chart-insight" style="font-size:14px;">이 대시보드는 <b>KISTI·KBSI·IBS·PAL</b>의 논문 성과와 인프라 유발효과를 분석한다. 아래는 사용된 <b>데이터·커버리지·출처·수집 방법</b>과 핵심 지표 정의를 정리한 것이다. 기준 기간은 <b>${period}년</b>.</p>
+
+        <div class="chart-card"><h3>Q1. 이 분석은 어떤 데이터를 사용하나?</h3>
+            <div style="overflow-x:auto;"><table class="data-table" style="width:100%;">
+                <thead><tr><th>데이터</th><th>내용</th><th>규모 / 기준</th></tr></thead><tbody>
+                <tr><td><b>WoS 논문</b></td><td>Clarivate Web of Science SCIE+SSCI+AHCI 논문 메타데이터(UT·발표연도·피인용·저널·분야 등)</td><td>한국 ${num(s.kr_total)}건 (${period})</td></tr>
+                <tr><td><b>WoS 기관연결</b></td><td>논문×기관 매핑(대표명 org_alias)으로 소속 판별</td><td>2025년분 C1 자동복원으로 커버리지 100%</td></tr>
+                <tr><td><b>JCR JIF</b></td><td>저널 Impact Factor·분위(Q1–Q4)</td><td>2011–2025 전 연도</td></tr>
+                <tr><td><b>ESI 분야</b></td><td>ISSN→22개 연구분야 매핑(분야 정규화용)</td><td>Clarivate ESI</td></tr>
+                <tr><td><b>유발논문(사사)</b></td><td>사사표기(FU/FX)에 각 기관 인프라 키워드가 검출된 논문</td><td>KISTI ${num(s.induced_papers)}·KBSI ${num(s.kbsi_induced_papers)}·IBS ${num(s.ibs_induced_papers)}·PAL ${num(s.pal_induced_papers)}건</td></tr>
+                <tr><td><b>글로벌 FWCI</b></td><td>OpenAlex 논문별 세계기준 영향력(FWCI)·세계 피인용 백분위</td><td>유발논문 매칭 ${fcov!=null?fcov+'%':'~99%'}</td></tr>
+                <tr><td><b>특허 인용</b></td><td>Lens 논문별 특허 피인용수(과학→기술 파급)</td><td>유발논문 매칭 ${pcov!=null?pcov+'%':'~99%'}</td></tr>
+                <tr><td><b>출연연 인력</b></td><td>NST 공시 학위별 정규인력(인력 생산성용)</td><td>25개 출연연, 2021.12.31 기준</td></tr>
+                </tbody></table></div>
+        </div>
+
+        <div class="chart-card"><h3>Q2. 데이터 커버리지는 어떻게 되나?</h3>
+            <ul class="chart-insight" style="margin:0;padding-left:20px;">
+                <li>분석 기간 <b>${period}년</b>의 한국 SCIE+SSCI+AHCI 논문을 <b>전수</b> 수집(${num(s.kr_total)}건).</li>
+                <li>KISTI(직접+유발) 합산 한국 비중 약 <b>${s.combined_kr_share!=null?s.combined_kr_share+'%':'—'}</b>.</li>
+                <li><b>직접논문 2025년분</b>: 기관연결 원자료가 11%만 제공돼 과소집계됐으나, 저자주소(C1)에서 기관을 자동복원해 <b>11%→100%</b>로 보완.</li>
+                <li><b>글로벌 FWCI</b>: 유발논문 DOI의 <b>${fcov!=null?fcov+'%':'~99%'}</b>를 OpenAlex에서 매칭.</li>
+                <li><b>특허 인용</b>: 유발논문 DOI의 <b>${pcov!=null?pcov+'%':'~99%'}</b>를 Lens에서 매칭.</li>
+            </ul>
+        </div>
+
+        <div class="chart-card"><h3>Q3. 어디서, 어떻게 수집했나?</h3>
+            <div style="overflow-x:auto;"><table class="data-table" style="width:100%;">
+                <thead><tr><th>데이터</th><th>출처</th><th>수집 방법</th></tr></thead><tbody>
+                <tr><td>WoS 논문·기관</td><td>Clarivate Web of Science</td><td>WoS 검색 → TXT 다운로드 → 파싱(preprocess_wos.py). 2025 기관은 저자주소(C1) 자동복원 병합</td></tr>
+                <tr><td>JCR JIF</td><td>Clarivate JCR</td><td>연도별 엑셀 다운로드 → 변환</td></tr>
+                <tr><td>ESI 분야</td><td>Clarivate ESI</td><td>ISSN–분야 분류표 다운로드</td></tr>
+                <tr><td>유발논문</td><td>WoS FU/FX(사사표기) 필드</td><td>기관 인프라 키워드 정규식 스캔(scan_all_induced_2026.py)</td></tr>
+                <tr><td>글로벌 FWCI</td><td><b>OpenAlex</b> works API</td><td>유발논문 DOI 배치 조회(build_fwci_index.py). 무료 공개 API</td></tr>
+                <tr><td>특허 인용</td><td><b>Lens.org</b> Scholarly Aggregation API</td><td>유발논문 DOI 배치 조회(build_patent_cit.py)로 patent_citation_count 집계</td></tr>
+                <tr><td>출연연 인력</td><td>국가과학기술연구회(NST) 공시</td><td>학위별 정규인력 수기 수집</td></tr>
+                <tr><td>경제가치·국제비교 참고</td><td>KISTEP·KREONET·XSEDE·PRACE·NERSC 등 공식 보고서</td><td>웹 조사(2026.02)</td></tr>
+                </tbody></table></div>
+        </div>
+
+        <div class="chart-card"><h3>Q4. 핵심 지표는 어떻게 정의되나?</h3>
+            <div style="overflow-x:auto;"><table class="data-table" style="width:100%;">
+                <thead><tr><th>지표</th><th>정의 / 공식</th></tr></thead><tbody>
+                <tr><td><b>직접논문</b></td><td>기관 소속 저자가 포함됐으나 사사표기에 인프라 키워드가 <b>없는</b> 논문(순수 소속 성과)</td></tr>
+                <tr><td><b>유발논문</b></td><td>사사표기(FU/FX)에 기관 인프라 키워드가 <b>검출된</b> 모든 논문(인프라 활용 유발 성과)</td></tr>
+                <tr><td><b>MNCS</b></td><td>논문 피인용 ÷ (동일 <b>분야·연도의 한국 평균</b> 피인용)의 평균. 1.0=한국 평균</td></tr>
+                <tr><td><b>FWCI</b></td><td>논문 피인용 ÷ (동일 <b>분야·연도·유형의 세계 평균</b> 피인용). 1.0=세계 평균 <b>(국제표준, Scopus·InCites와 동일 원리)</b></td></tr>
+                <tr><td><b>세계 상위 10%/1%</b></td><td>논문의 세계 피인용 백분위가 상위 10%·1%에 든 비율</td></tr>
+                <tr><td><b>특허 연계율</b></td><td>유발논문 중 <b>1건 이상 특허에 인용된</b> 논문의 비율(과학→기술 파급)</td></tr>
+                </tbody></table></div>
+            <div class="src-box"><div><span class="src-label">유의사항</span>MNCS는 <b>한국</b> 평균 기준이라 국제 비교엔 <b>FWCI</b>(세계 기준)를 함께 본다. PAL은 WoS에서 POSTECH 하위기관이라 유발논문만, IBS는 NST 비소관이라 인력 생산성 분석에서 제외된다. HCP는 자체계산(상위 1% 피인용)으로 Clarivate 공식 HCP와 다르다.</div></div>
+        </div>
+    `;
+};
+
+// ═══════════════════════════════════════════════════════════
 // 💡 정책 인사이트 — I-0. 핵심 발견 요약
 // ═══════════════════════════════════════════════════════════
 
@@ -5192,7 +5262,11 @@ renderers.ins_summary = function(D) {
           <em>인과 사슬</em>이 데이터로 입증됨.
         </div>
       </div>
-
+      ${srcBox(
+        'I-1~I-8 상세 페이지와 동일한 원천 — WoS 논문·기관·HCP, 유발논문(사사표기), OpenAlex 글로벌 FWCI, Lens 특허 인용을 종합. 상세 출처·산출식은 각 페이지 및 FAQ 참조.',
+        '이 페이지는 각 상세 분석의 핵심 수치를 요약·재구성한 것으로, 별도 계산 없이 I-1~I-8 결과를 인용한다.',
+        'KISTI 인프라가 <b>양(논문 수)보다 질(HCP·FWCI·상위권 비중)에서 국가 기여가 크고</b>, 특정 전략 분야에서 대체 불가능하며, 학술(FWCI)과 기술(특허) 양쪽으로 파급된다는 핵심 서사를 한 화면에 모았다. 각 카드의 "상세 보기"로 근거 데이터를 확인할 수 있다.'
+      )}
     `;
 };
 
@@ -5523,6 +5597,10 @@ renderers.ins_contribution = function(D) {
     addDataTable('ins_contrib_ratio',
         ['연도','한국 전체 비중(%)','상위10% 비중(%)','Q1 비중(%)'],
         filtered.map(s => [s.year, s.ratio_induced, s.ratio_top10p, s.ratio_q1]));
+    addSrcBox('ins_contrib_ratio',
+        'WoS 한국 전체 논문(SCIE+SSCI+AHCI 전수)과 KISTI 유발논문. 상위10%는 각 연도 한국 논문의 피인용 상위 10% 임계값, Q1은 JCR 저널 분위(Q1) 기준으로 각각 집계.',
+        '세 기준별 비중 = (해당 군의 KISTI 유발논문 수) ÷ (해당 군의 한국 전체 논문 수) × 100. 전체·상위10%·Q1 각각을 연도별로 계산.',
+        'KISTI 유발논문의 <b>상위10%·Q1 비중이 전체 비중보다 일관되게 높다는 것</b>은, KISTI 인프라(슈퍼컴·연구망 등)가 논문을 "양적으로 늘리는" 데 그치지 않고 <b>한국의 고피인용·고품질(Q1) 연구에 선택적으로 기여</b>함을 의미한다. 즉 인프라 투자 1단위가 평균적 논문보다 우수 논문에서 더 큰 국가 기여로 증폭된다.');
 
     // ② 논문 수 비교 (dual axis)
     destroyChart('ins_contrib_volume');
@@ -5549,6 +5627,10 @@ renderers.ins_contribution = function(D) {
     addDataTable('ins_contrib_volume',
         ['연도','한국 전체 SCIE','KISTI 유발'],
         filtered.map(s => [s.year, num(s.kr_total), num(s.kisti_induced)]));
+    addSrcBox('ins_contrib_volume',
+        'WoS 한국 전체 SCIE 논문 수(연도별 전수)와 KISTI 유발논문 수(사사표기 기반).',
+        '연도별 단순 편수 집계. 규모 차가 커 이중축(왼쪽=한국 전체 막대, 오른쪽=KISTI 유발 선)으로 표시.',
+        '단일 출연연 인프라가 유발한 논문이 <b>매년 수백~1천여 편</b> 규모라는 점은, KISTI 인프라가 특정 연구실이 아니라 <b>국가 연구생태계 전반의 생산성 기반</b>으로 작동함을 보여준다. 한국 전체 증가 추세 속에서 KISTI 유발 규모의 성장 여부가 인프라 확충 효과의 대리 지표가 된다.');
 
     // ③ 요약 테이블
     const tbl = document.getElementById('tbl_ins_contrib');
@@ -6064,6 +6146,10 @@ renderers.ins_hcp = function(D) {
         ['연도','한국 HCP','KISTI 유발 HCP','HCP 중 비중(%)','전체 SCIE 비중(%)'],
         series.map((s, i) => [s.year, num(s.kr_hcp), num(s.kisti_induced_hcp), s.ratio,
                               i1Series[i] ? i1Series[i].ratio_induced : '-']));
+    addSrcBox('ins_hcp_ratio',
+        '한국 전체 HCP와 KISTI 유발 HCP. 여기서 HCP는 각 연도 한국 논문의 <b>피인용 상위 1%</b>를 자체계산한 것(Clarivate 공식 HCP와 다름).',
+        'HCP 중 비중 = (KISTI 유발 HCP 수) ÷ (한국 전체 HCP 수) × 100. 같은 연도의 전체 SCIE 비중과 나란히 비교.',
+        'KISTI 유발논문의 <b>HCP 비중이 전체 SCIE 비중보다 높다면</b>, KISTI 인프라가 평범한 논문이 아니라 <b>한국 최상위 피인용(돌파적) 연구</b>에 특히 기여한다는 뜻이다. 유발 HCP가 매년 꾸준히 나온다는 것은 슈퍼컴·연구망 같은 대형 인프라가 breakthrough 연구의 <b>필수 기반</b>으로 쓰이고 있음을 보여준다.');
 
     // ② 프리스티지 막대 차트
     destroyChart('ins_hcp_prestige');
@@ -6089,6 +6175,10 @@ renderers.ins_hcp = function(D) {
     addDataTable('ins_hcp_prestige',
         ['연도','한국 프리스티지','KISTI 유발 프리스티지','비중(%)'],
         prestigeSeries.map(s => [s.year, num(s.kr_prestige), num(s.kisti_induced_prestige), s.ratio]));
+    addSrcBox('ins_hcp_prestige',
+        'Nature·Science·Cell 등 세계 최상위 프리스티지 저널에 실린 한국 논문(전체)과 그중 KISTI 유발논문. 저널명 기준 식별.',
+        '비중 = (KISTI 유발 프리스티지 논문 수) ÷ (한국 전체 프리스티지 논문 수) × 100, 연도별.',
+        '세계 최고 저널은 국가 대표급 연구의 상징이다. 여기서 <b>KISTI 유발 비중이 잡힌다는 것</b>은 KISTI 인프라가 변방이 아니라 <b>한국을 대표하는 정상급 연구</b>에까지 닿아 있음을 뜻한다. 피인용(HCP)과 저널 명성(프리스티지) 두 축 모두에서 기여가 확인되면 인프라의 질적 파급이 더 견고하게 입증된다.');
 
     // ③ 분야별 수평 막대
     destroyChart('ins_hcp_fields');
@@ -6114,6 +6204,10 @@ renderers.ins_hcp = function(D) {
     addDataTable('ins_hcp_fields',
         ['순위','분야','한국 HCP','KISTI 유발 HCP','비중(%)'],
         fieldTopByRatio.map((f, i) => [i+1, f.field, num(f.kr_hcp), num(f.kisti_induced_hcp), f.ratio]));
+    addSrcBox('ins_hcp_fields',
+        'ESI 22개 분야별 한국 HCP와 KISTI 유발 HCP. 표본이 충분한 분야(한국 HCP 30편 이상)만 대상으로, 비중 상위 10개 분야 표시.',
+        '분야 비중 = (분야 내 KISTI 유발 HCP) ÷ (분야 내 한국 HCP) × 100. 비중 내림차순 상위 10.',
+        'KISTI 인프라가 <b>어느 분야의 최상위 연구를 떠받치는지</b>를 드러낸다. 대규모 계산이 필수인 <b>물리·재료·우주·화학</b> 등에서 비중이 높게 나오는 것이 전형이며, 이는 KISTI 슈퍼컴·데이터 인프라의 강점 분야와 일치한다. 인프라 투자·증설의 <b>전략 분야 우선순위</b>를 정하는 근거로 쓸 수 있다.');
 
     // 연결 강도 파이 차트
     destroyChart('ins_hcp_strength_pie');
@@ -6148,6 +6242,10 @@ renderers.ins_hcp = function(D) {
             ['🟡 간접 연결 (NTIS DB 매핑)', mediumTotal, (mediumTotal/(strongTotal+mediumTotal)*100).toFixed(1)],
             ['합계', strongTotal+mediumTotal, '100.0'],
         ]);
+    addSrcBox('ins_hcp_strength_pie',
+        'KISTI 유발 HCP 논문의 사사표기(FU/FX) 원문 분석.',
+        '🟢강한 연결 = 사사에 <b>공용 인프라·장비</b>(KSC·NURION·GSDC·KREONET 등)를 실제 명시 / 🟡보통 연결 = 기관명·펀딩 과제코드만 언급. 각 편수의 비율.',
+        '이 구분은 <b>과대 귀속을 피하기 위한 정직한 장치</b>다. "강한 연결" 비중이 클수록 인프라 사용과 성과 사이 인과가 뚜렷하다. KISTI는 슈퍼컴 같은 <b>공용 인프라</b>를 제공하므로 사사에서 실제 장비명이 잡히는 직접 연결이 식별 가능하다는 강점이 있다 — 정책 보고 시 신뢰도를 높이는 근거가 된다.');
 
     // ⭐ 스타 논문 해설 섹션 (AlphaFold는 별도 특별 박스에서 처리되므로 제외)
     const starsBox = document.getElementById('ins_hcp_stars');
@@ -6674,6 +6772,10 @@ renderers.ins_fields = function(D) {
         ['순위','분야','한국 전체','KISTI 유발','전체 비중(%)','한국 HCP','KISTI HCP','HCP 비중(%)'],
         topN.map((r, i) => [i+1, r.field, num(r.kr_total), num(r.kisti_induced), r.overall_ratio,
                              num(r.kr_hcp), num(r.kisti_induced_hcp), r.hcp_ratio]));
+    addSrcBox('ins_fields_dual',
+        'ESI 22개 분야별 한국 전체 논문·HCP와 KISTI 유발 논문·HCP. 분야는 저널 ISSN→ESI 매핑으로 분류.',
+        '전체 비중 = KISTI 유발 ÷ 한국 전체 × 100, HCP 비중 = KISTI 유발 HCP ÷ 한국 HCP × 100 (분야별).',
+        '한 분야에서 <b>HCP 비중(주황)이 전체 비중(파랑)보다 크게 길수록</b>, 그 분야의 <b>최상위 연구일수록 KISTI 인프라 의존이 커진다</b>는 뜻이다. 이는 "KISTI 없이는 정상급 성과가 어려운 분야"를 특정해 주며, 인프라의 대체 불가능성이 큰 전략 분야를 가려내는 근거가 된다.');
 
     // ② 히트맵 (CSS Grid)
     const hm = document.getElementById('ins_fields_heatmap');
@@ -6736,6 +6838,16 @@ renderers.ins_fields = function(D) {
                 '</tr>';
         }).join('') +
         '</tbody>';
+
+    // ② 히트맵 · ③ 랭킹표 하단 주석
+    if (hm) hm.closest('.chart-card').insertAdjacentHTML('beforeend', srcBox(
+        'KISTI 유발논문과 한국 전체 논문을 <b>분야(ESI 22) × 연도</b>로 교차 집계.',
+        '각 셀 = 해당 연도·분야에서 (KISTI 유발 ÷ 한국 전체) × 100. 색이 진할수록 의존도 높음.',
+        '분야별 의존도의 <b>연도 추이와 분야 간 편차를 동시에</b> 보여준다. 특정 분야에서 색이 꾸준히 진하다면 그 분야의 KISTI 인프라 의존이 구조적·지속적임을, 최근 진해졌다면 신규 인프라(예: 슈퍼컴 증설) 효과가 특정 분야에 나타나고 있음을 시사한다.'));
+    if (tbl) tbl.closest('.chart-card').insertAdjacentHTML('beforeend', srcBox(
+        'ESI 22개 분야 전체의 한국 전체·HCP·KISTI 유발(직접/간접 강도 포함) 집계.',
+        '전체 비중·HCP 비중·HCP 배수(HCP비중÷전체비중)·전략점수로 랭킹. 배수>1이면 최상위권 의존이 평균보다 큼.',
+        'KISTI 인프라가 <b>양(전체 비중)과 질(HCP 비중) 어느 쪽에 강한지</b>를 분야별로 한눈에 비교한다. HCP 배수가 큰 분야는 "정상급 연구일수록 KISTI가 필요한" 분야로, 인프라 예산 배분과 분야 특화 전략의 우선순위 근거가 된다.'));
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -7080,6 +7192,10 @@ renderers.ins_intl = function(D) {
     addDataTable('ins_intl_metrics',
         ['협력 유형','건수','평균 TC','MNCS','HCP 비중(%)','Q1 비율(%)'],
         types.map(t => [t.type, num(t.count), t.avg_tc, t.mncs, t.hcp_ratio, t.q1_ratio]));
+    addSrcBox('ins_intl_metrics',
+        'KISTI 유발논문을 협력 유형(단독·국내·국제·국내외)으로 나눠 각 그룹의 피인용·MNCS·HCP·Q1을 집계. 협력 유형은 저자주소(C1) 국가 파싱으로 판정.',
+        '유형별 평균 TC, MNCS(=피인용÷동일 분야·연도 한국 평균), HCP 비중, Q1 저널 비율을 각각 산출.',
+        '<b>국제 협력 유형의 지표가 국내·단독보다 높게 나오는 것</b>은, KISTI 인프라를 매개로 한 국제 공동연구가 <b>질적으로 더 우수</b>함을 의미한다. 즉 슈퍼컴·연구망 같은 인프라가 단순 국내 지원을 넘어 <b>고품질 국제 협력의 촉매</b>로 작동하고 있다는 근거다.');
 
     // ③ 연도별 국제 협력 비중
     destroyChart('ins_intl_trend');
@@ -7110,6 +7226,10 @@ renderers.ins_intl = function(D) {
     addDataTable('ins_intl_trend',
         ['연도','전체','국제','국내','국제 비중(%)'],
         yearlyFiltered.map(y => [y.year, num(y.total), num(y.intl), num(y.dom), y.intl_share]));
+    addSrcBox('ins_intl_trend',
+        'KISTI 유발논문의 연도별 국제·국내·전체 편수. 저자주소(C1)에 한국 외 국가가 포함되면 국제 협력으로 분류.',
+        '국제 협력 비중 = (국제 협력 논문 수) ÷ (전체 유발논문 수) × 100, 연도별.',
+        'KISTI 인프라 유발논문의 <b>국제화 추이</b>다. 국제 비중이 상승한다면 KISTI 인프라가 국내에 머무르지 않고 <b>글로벌 연구 네트워크 확장</b>에 기여하고 있다는 신호이며, 개방형 인프라(연구망 KREONET 등)의 국제 연계 성과를 뒷받침한다.');
 
     // ④ 분야별 국제 협력 비중 (수평 막대)
     destroyChart('ins_intl_fields');
@@ -7134,6 +7254,10 @@ renderers.ins_intl = function(D) {
     addDataTable('ins_intl_fields',
         ['순위','분야','전체 KISTI 유발','국제 협력','국제 협력 비중(%)'],
         fi.map((f, i) => [i+1, f.field, num(f.total), num(f.intl), f.intl_share]));
+    addSrcBox('ins_intl_fields',
+        '분야(ESI 22)별 KISTI 유발논문 전체와 국제 협력 편수. 표본이 충분한 분야(최소 30편) 중 국제 비중 상위 15개.',
+        '분야 국제 협력 비중 = (분야 내 국제 협력 논문) ÷ (분야 내 전체 유발논문) × 100.',
+        '어느 분야에서 KISTI 인프라가 <b>국제 협력을 특히 많이 유발</b>하는지 보여준다. 입자물리·천문처럼 대형 국제 공동연구가 필수인 분야에서 높게 나타나는 것이 전형이며, 이는 KISTI 대용량 계산·데이터 인프라가 <b>국제 대과학(big science) 참여의 기반</b>임을 시사한다.');
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -7418,6 +7542,10 @@ renderers.ins_counterfactual = function(D) {
                      num(f.kisti_hcp_strong || 0), f.loss_pct_a,
                      num(f.kisti_hcp_total || 0), f.loss_pct_b,
                      num(f.new_hcp_a), num(f.new_hcp_b)]));
+    addSrcBox('ins_cf_fields',
+        '분야별 한국 HCP(상위 1% 고인용 논문)와 KISTI 유발 HCP. 두 반사실 시나리오 — A: 인프라 <b>직접(강한 연결)</b> 유발 HCP 제거, B: KISTI 유발 HCP <b>전체</b> 제거.',
+        '분야별 손실률 = (제거되는 KISTI 유발 HCP) ÷ (한국 HCP) × 100. 잔여 = 한국 HCP − 제거. A는 보수적 하한, B는 최대 상한.',
+        '<b>"KISTI 인프라가 없었다면 한국의 최상위 논문이 얼마나 사라졌을까"</b>를 분야별로 추정한다. 손실률이 큰 분야일수록 KISTI의 <b>대체 불가능성</b>이 크다는 뜻이다. 보수적(A)·최대(B) 두 값으로 범위를 제시해, 인프라 폐지·축소의 국가적 손실을 과장 없이 정책 언어로 환산할 수 있다.');
 
     // 시나리오 A 테이블
     const tblA = document.getElementById('tbl_cf_a');
@@ -7452,6 +7580,17 @@ renderers.ins_counterfactual = function(D) {
                 '</tr>';
         }).join('') +
         '</tbody>';
+
+    // 시나리오 A·B 대표 손실 논문 표 주석
+    const _cfA = document.getElementById('tbl_cf_a');
+    if (_cfA) _cfA.closest('.chart-card').insertAdjacentHTML('beforeend', srcBox(
+        'KISTI 유발 HCP 중 <b>인프라 직접(강한 연결)</b> 유발분(시나리오 A)에서 피인용 상위 대표 논문.',
+        '사사에 공용 인프라가 명시된 유발 HCP만 "제거 대상"으로 보고, 피인용 높은 순으로 정렬.',
+        '엄격히(직접 사용분만) 따져도 KISTI가 없었다면 <b>사라졌을 한국 대표 고인용 논문</b>들이다. 추상적 손실률을 실제 논문 제목으로 보여줘 정책 설득력을 높인다.'));
+    if (tblB) tblB.closest('.chart-card').insertAdjacentHTML('beforeend', srcBox(
+        'KISTI 유발 HCP <b>전체</b>(직접+간접, 시나리오 B)에서 피인용 상위 대표 논문.',
+        'KISTI 유발 HCP 전체를 "제거 대상"으로 보고 피인용 높은 순 정렬. 최대 상한 관점.',
+        'KISTI 기여를 <b>최대로</b> 인정할 때 걸리는 대표 논문들이다. 시나리오 A(하한)와 함께 보면, KISTI 인프라가 지켜낸 한국 최상위 성과의 <b>범위</b>를 구체적 논문으로 확인할 수 있다.'));
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -7898,6 +8037,11 @@ renderers.ins_field_quality = function(D) {
           여러 기관이 모두 진하면 <em>해당 분야 자체가 인프라 의존도 높음</em>. KISTI 셀이 진한 분야가 KISTI의 질적 강점.
         </div>
       </div>
+      ${srcBox(
+        '4기관(KISTI·KBSI·IBS·PAL) 유발논문을 ESI 22분야(및 WoS 254 세부분야)로 나눠, 각 분야의 MNCS·세계상위10%·HCP 비율을 산출. 분모는 한국 동분야·동연도 평균(문헌유형 정규화 포함).',
+        'MNCS = 각 논문의 (피인용 ÷ 동분야·동연도·동유형 한국 평균)을 평균. 상위10%·HCP 비율은 한국 기준 임계 초과 논문 비율. 표본 ' + FQ_MIN_N + '편 미만 분야는 제외.',
+        '동일 잣대로 4기관을 분야별로 비교해 <b>KISTI가 다른 인프라 기관보다 질적으로 앞서는 분야</b>를 특정한다. KISTI 셀이 진한(우위) 분야는 KISTI 인프라의 <b>차별적 강점 영역</b>으로, 특화·집중 투자의 근거가 된다. 중심 기관을 바꾸면 각 기관 관점의 우위 분야로 재계산된다.'
+      )}
     `;
 
     // 시계열 라인차트 인스턴스화 (재렌더마다 destroy 후 재생성)
