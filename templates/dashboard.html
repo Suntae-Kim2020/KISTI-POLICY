@@ -877,6 +877,7 @@ mark.hl-kbsi { background: rgba(76,175,80,0.35); color: var(--green); border-rad
         <a class="nav-item insight-item" data-page="ins_counterfactual" onclick="showPage('ins_counterfactual')">I-5. "KISTI가 없었다면" 반사실 시뮬레이션</a>
         <a class="nav-item insight-item" data-page="ins_field_quality" onclick="showPage('ins_field_quality')">I-6. 분야별 질적 비교 (4기관)</a>
         <a class="nav-item insight-item" data-page="ins_impact" onclick="showPage('ins_impact')">I-7. 영향력 종합 비교 (4기관)</a>
+        <a class="nav-item insight-item" data-page="ins_patent" onclick="showPage('ins_patent')">I-8. 과학→기술 파급 (특허 인용)</a>
         </div>
     </nav>
     <div class="main" id="mainContent">
@@ -1244,7 +1245,8 @@ async function exportAll() {
         'ins_intl',
         'ins_counterfactual',
         'ins_field_quality',
-        'ins_impact'
+        'ins_impact',
+        'ins_patent'
     ];
 
     // 현재 상태 저장
@@ -1692,7 +1694,8 @@ function buildPages() {
         'ins_intl',
         'ins_counterfactual',
         'ins_field_quality',
-        'ins_impact'];
+        'ins_impact',
+        'ins_patent'];
     pages.forEach(id => {
         const div = document.createElement('div');
         div.className = 'page';
@@ -8052,6 +8055,105 @@ renderers.ins_impact = function(D) {
             'WoS(논문수·피인용) + OpenAlex(FWCI·백분위) 통합. 유발논문 = 사사표기(FU/FX)에 각 기관 인프라 키워드가 검출된 논문.',
             '유발논문수·평균 피인용은 WoS 집계, 한국평균 대비는 실측 배수, FWCI·세계상위%는 OpenAlex 글로벌 지표. 기간 슬라이더에 연동 재계산.',
             `종합적으로 <b>${topOrg}</b>가 세계 기준 영향력에서 선두이며, 4기관 모두 세계 평균(FWCI 1.0)을 상회한다. 규모(논문수)와 질(FWCI)을 함께 보면 기관별 인프라 성격 차이가 드러난다.`
+        )}`;
+};
+
+// 💡 정책 인사이트 — I-8. 과학→기술 파급 (특허 인용, Lens)
+renderers.ins_patent = function(D) {
+    const el = document.getElementById('page-ins_patent');
+    const pc = D.patent_cit;
+    if (!pc) {
+        el.innerHTML = `<div class="page-title">💡 I-8. 과학→기술 파급 (특허 인용)</div>
+            <div class="chart-card"><p class="chart-insight" style="color:#ef5350;">특허 인용 데이터(patent_cit_index)가 아직 생성되지 않았습니다. build_patent_cit.py 실행 후 캐시를 재생성하면 표시됩니다.</p></div>`;
+        return;
+    }
+    const ORG = [
+        { k:'KISTI', c: COLORS.blue,   d: pc.kisti },
+        { k:'KBSI',  c: COLORS.green,  d: pc.kbsi },
+        { k:'IBS',   c: COLORS.orange, d: pc.ibs },
+        { k:'PAL',   c: COLORS.pink,   d: pc.pal },
+    ].filter(o => o.d);
+    const labels = ORG.map(o => o.k);
+    const disp = v => v != null ? v : '—';
+    // 순위: 특허인용률
+    const ranked = ORG.slice().sort((a,b)=>(b.d.cited_rate_pct||0)-(a.d.cited_rate_pct||0));
+    const topRate = ranked[0] ? ranked[0].k : '—';
+    const topVol = ORG.slice().sort((a,b)=>(b.d.patent_citations||0)-(a.d.patent_citations||0))[0];
+
+    el.innerHTML = `
+        <div class="page-title">💡 I-8. 과학→기술 파급 (특허 인용)</div>
+        <p class="chart-insight" style="font-size:14px;">4기관 <b>유발논문(사사표기 기반)</b>이 <b>특허에 얼마나 인용됐는가</b>를 비교한다. 논문 피인용(학계 영향력)·FWCI(세계 영향력)와 별개로, 연구가 <b>실제 기술·산업(특허)으로 흘러간 정도</b>를 보여주는 축이다. 특허 인용은 발표 이후 누적되는 지표라 <b>전체 기간(2011–2025) 누적</b> 기준이며 기간 슬라이더와 무관하다. 각 표·그림 아래 데이터 출처·산출 방식·인사이트를 표기한다.</p>
+
+        <div class="chart-card"><h3>① 논문이 특허에 인용된 비율 (특허 연계율)</h3>
+            <p class="chart-insight">각 기관 유발논문 중 <b>1건 이상 특허에 인용된 논문</b>의 비율이다. 연구가 기술 개발에 실제로 활용된 정도(과학→기술 연계)를 나타낸다.</p>
+            <div class="chart-wrap"><canvas id="ins8_rate"></canvas></div></div>
+
+        <div class="chart-card"><h3>② 총 특허 인용수 & 논문당 평균</h3>
+            <p class="chart-insight">특허가 이 기관 논문을 인용한 총 횟수(규모)와 논문 1편당 평균 특허 인용수(집약도)이다.</p>
+            <div class="chart-wrap"><canvas id="ins8_vol"></canvas></div></div>
+
+        <div class="chart-card"><h3>③ 과학→기술 파급 종합 비교표</h3>
+            <div id="ins8_table_wrap" style="overflow-x:auto;"></div>
+        </div>
+    `;
+
+    const dl = { datalabels: { display:true, anchor:'end', align:'end', color:'#c0c8e0', font:{size:11},
+        formatter: v => v==null ? '' : v } };
+
+    // ① 특허 연계율
+    destroyChart('ins8_rate');
+    charts['ins8_rate'] = new Chart(document.getElementById('ins8_rate'), {
+        type:'bar',
+        data:{ labels, datasets:[{ label:'특허 인용 논문 비율 (%)', data: ORG.map(o=>o.d.cited_rate_pct), backgroundColor: ORG.map(o=>o.c) }] },
+        options:{ responsive:true, plugins: dl, scales:{ y:{ beginAtZero:true, title:{display:true,text:'특허 연계율 (%)'} } } }
+    });
+    addDataTable('ins8_rate', ['기관','특허인용 논문수','Lens 매칭 논문수','특허 연계율(%)'],
+        ORG.map(o => [o.k, num(o.d.papers_cited_by_patent), num(o.d.lens_matched), disp(o.d.cited_rate_pct)]));
+    addSrcBox('ins8_rate',
+        'Lens Scholarly Aggregation API — 유발논문 DOI를 조회해 <b>patent_citation_count</b>(그 논문을 인용한 특허 수)를 집계. Lens 매칭 논문 기준.',
+        '특허 연계율 = (patent_citation_count ≥ 1 인 논문 수) ÷ (Lens에 매칭된 논문 수) × 100. 논문 DOI를 1,000건씩 배치로 aggregate 질의.',
+        `특허 연계율 1위는 <b>${topRate}</b>. 연계율이 높을수록 해당 기관 연구가 특허(기술개발)에 직접 활용되는 비중이 크다 — 논문 인용(학계)과 다른 '기술 파급' 축이다.`);
+
+    // ② 총 특허 인용 + 논문당 평균 (이중축)
+    destroyChart('ins8_vol');
+    charts['ins8_vol'] = new Chart(document.getElementById('ins8_vol'), {
+        type:'bar',
+        data:{ labels, datasets:[
+            { label:'총 특허 인용수', data: ORG.map(o=>o.d.patent_citations), backgroundColor: COLORS.indigo, yAxisID:'y' },
+            { label:'논문당 평균 특허인용', data: ORG.map(o=>o.d.avg_patent_cit), backgroundColor: COLORS.amber, yAxisID:'y1', type:'line', borderColor: COLORS.amber, tension:0.3 },
+        ]},
+        options:{ responsive:true, plugins:{ datalabels:{ display:false } },
+            scales:{ y:{ beginAtZero:true, position:'left', title:{display:true,text:'총 특허 인용수'} },
+                     y1:{ beginAtZero:true, position:'right', grid:{drawOnChartArea:false}, title:{display:true,text:'논문당 평균'} } } }
+    });
+    addDataTable('ins8_vol', ['기관','총 특허 인용수','논문당 평균 특허인용'],
+        ORG.map(o => [o.k, num(o.d.patent_citations), disp(o.d.avg_patent_cit)]));
+    addSrcBox('ins8_vol',
+        'Lens Scholarly Aggregation API (patent_citation_count 필드의 합계·평균).',
+        '총 특허 인용수 = Σ patent_citation_count, 논문당 평균 = 총 특허 인용수 ÷ Lens 매칭 논문수. 특허 인용은 발표 이후 누적치.',
+        `총량은 <b>${topVol?topVol.k:'—'}</b>가 최대이나, 규모(논문수)가 다르므로 논문당 평균·연계율과 함께 봐야 공정하다.`);
+
+    // ③ 종합 비교표
+    const rows = ORG.map(o => `<tr>
+        <td style="font-weight:600;color:${o.c};">${o.k}</td>
+        <td>${num(o.d.induced_total)}</td>
+        <td>${num(o.d.lens_matched)}</td>
+        <td>${num(o.d.papers_cited_by_patent)}</td>
+        <td>${disp(o.d.cited_rate_pct)}${o.d.cited_rate_pct!=null?'%':''}</td>
+        <td>${num(o.d.patent_citations)}</td>
+        <td>${disp(o.d.avg_patent_cit)}</td>
+    </tr>`).join('');
+    document.getElementById('ins8_table_wrap').innerHTML = `
+        <table class="data-table" style="width:100%;">
+            <thead><tr>
+                <th>기관</th><th>유발논문수</th><th>Lens 매칭</th><th>특허인용 논문수</th>
+                <th>특허 연계율</th><th>총 특허 인용수</th><th>논문당 평균</th>
+            </tr></thead><tbody>${rows}</tbody>
+        </table>
+        ${srcBox(
+            'Lens Scholarly Aggregation API — 4기관 유발논문 DOI(WoS 사사표기 기반) × patent_citation_count.',
+            '유발논문수(WoS) / Lens 매칭(DOI 일치분) / 특허인용 논문수·연계율·총 인용·논문당 평균(Lens). 전체 기간 누적.',
+            `종합적으로 특허 연계율은 <b>${topRate}</b>가 선두다. FWCI(세계 학술 영향력, I-7)와 특허 연계율(기술 파급)을 함께 보면, 기관 인프라가 학술·산업 어느 쪽으로 더 파급되는지 성격 차이가 드러난다.`
         )}`;
 };
 

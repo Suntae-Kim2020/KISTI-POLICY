@@ -5026,6 +5026,14 @@ def main():
         "pal_induced_kr_share": round(len(pal_pure_induced_records) / max(kr_count, 1) * 100, 2),
     }
 
+    # 특허 인용(과학→기술 파급) — Lens Scholarly Aggregation, build_patent_cit.py 산출.
+    # 전체기간 누적 지표(특허 인용은 발표연도 기간 슬라이싱 무의미) → 정적 최상위 키.
+    patent_cit = None
+    _pc_path = resolve_file("patent_cit_index.json", config, optional=True)
+    if _pc_path is not None:
+        patent_cit = json.loads(_pc_path.read_text(encoding="utf-8"))
+        print(f"  특허인용 인덱스(Lens): {_pc_path.name}")
+
     data_cache = {
         "_meta": {
             "data_version": config.data_version,
@@ -5037,6 +5045,7 @@ def main():
             "generated_at": datetime.now().isoformat(timespec="seconds"),
         },
         "summary": summary,
+        "patent_cit": patent_cit,
         **sec1,
         **sec2,
         **sec3,
