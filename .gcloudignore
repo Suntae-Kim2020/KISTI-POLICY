@@ -18,3 +18,4 @@ scan_*.py
 build_inst_*.py
 DEPLOYMENT.md
 CLAUDE.md
+.lens_token
