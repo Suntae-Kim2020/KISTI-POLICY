@@ -26,6 +26,8 @@ KISTI_Policy/
 ├── scan_kbsi_induced.py         # KBSI 유발논문 탐색 → kbsi_induced_papers.json 생성
 ├── scan_ibs_induced.py          # IBS 유발논문 탐색 → ibs_induced_papers.json 생성
 ├── scan_pal_induced.py          # PAL 유발논문 탐색 → pal_induced_papers.json 생성
+├── build_fwci_index.py          # OpenAlex 글로벌 FWCI 수집 → data_2025/fwci_index.json (I-7, 제약 #12)
+├── build_patent_cit.py          # Lens 특허인용 수집 → data_2025/patent_cit_index.json (I-8, 제약 #13)
 ├── data_cache.json              # compute.py 실행 결과 (~51MB, 생성 파일)
 ├── exclusions.json              # 대시보드에서 제외한 논문 UT 목록
 ├── 파일목록_참고자료.txt           # 전체 파일 목록 및 용도 상세 설명
@@ -306,6 +308,24 @@ PAL 유발논문 UT (data_2025/pal_induced_papers.json) → 3,359건 (직접논�
 
 *Note: PAL(포항가속기연구소)은 WoS에서 POSTECH 하위기관으로 분류되어 org_alias 단독 분리가 불가능. 유발논문(사사표기 기반)만 분석.*
 
+### 💡 정책 인사이트 (I-0 ~ I-8)
+
+정형 분석(sec1~11)과 별도로, 정책 보고용 종합·해석 페이지. dashboard 사이드바 "💡 정책 인사이트" 그룹.
+
+| ID | 페이지(data-page) | 내용 |
+|----|------|------|
+| I-0 | `ins_summary` | 핵심 발견 요약 |
+| I-1 | `ins_contribution` | 국가 기여도 추이 |
+| I-2 | `ins_hcp` | HCP·Top Tier 기여 |
+| I-3 | `ins_fields` | 분야별 의존도 |
+| I-4 | `ins_intl` | 국제 협력 질적 비교 |
+| I-5 | `ins_counterfactual` | "KISTI가 없었다면" 반사실 시뮬레이션 |
+| I-6 | `ins_field_quality` | 분야별 질적 비교 (4기관) |
+| **I-7** | `ins_impact` | **영향력 종합 비교 (4기관)** — 글로벌 FWCI 중심 (제약 #12). 클라이언트에서 `secX_5.fwci`+`summary`만 읽어 렌더(기간 재계산 연동) |
+| **I-8** | `ins_patent` | **과학→기술 파급 (특허 인용)** — Lens 특허인용 (제약 #13). 캐시 `patent_cit` 키 사용(전체기간 정적) |
+
+I-7·I-8은 각 표·그림 하단에 **데이터 출처 / 산출 방식 / 인사이트** 주석 박스(`srcBox`/`addSrcBox`, `.src-box`). 신규 인사이트 페이지 추가 시 등록 3곳 필요: 사이드바 네비, `buildPages()` 배열, `exportAll()`의 `allPages` 배열.
+
 ---
 
 ## 인프라 분류 키워드
@@ -439,6 +459,8 @@ PAL 유발논문 UT (data_2025/pal_induced_papers.json) → 3,359건 (직접논�
 11. **(해소) JCR/JIF 2024-2025**: 구 데이터는 2008-2023까지만이라 학술지 분석(sec1_5/4_5/7_5)의 JIF·Q1 분위가 2023년까지만 매칭됐으나, `generated/2026/jcr_jif.pkl`이 **2011-2025 전 연도(2024·2025 포함, 각 ~13,000 ISSN)** 를 커버해 해소됨. `--version 2026` 실행 시 자동 적용.
 
 12. **글로벌 FWCI (OpenAlex) — 유발논문 영향력 국제표준화**: 대시보드 MNCS는 **한국 평균** 분모라 국제표준(CNCI/FWCI)이 아니라는 한계(제약 #5)를 보완. `build_fwci_index.py`가 원시 TXT에서 유발논문 UT→DOI를 뽑아 **OpenAlex works API**로 논문별 글로벌 FWCI·세계 피인용 백분위(top1%/top10%)를 조회 → `data_2025/fwci_index.json`(UT별) 생성. `compute.py`가 `optional=True`로 로드해 유발 영향력 섹션(sec2_5/5_5/8_5/10_5)에 `fwci` 집계(중앙값·평균·세계상위10%/1%·커버리지)를 주입하고, 퍼페이퍼 `fwci`/`gtop`(1=상위1%,10=상위10%,0=해당없음)을 임베드해 dashboard가 **기간 재계산까지 정합**하게 표시(`fwciStats`/`fwciPanel`). 인덱스 없으면 패널 자동 숨김(그레이스풀). **파일럿 결과(2011-2025)**: 유발논문 중앙값 FWCI KISTI 2.19·IBS 1.94·PAL 1.21·KBSI 1.27, 세계 상위1% 비중 KISTI 7.3%·IBS 7.1%. **caveat**: OpenAlex 무료 한도 **1,000 req/윈도우(~12.5h, $0.10 예산)** — 35k DOI는 703 req(50/req)로 한 윈도우에 처리 가능하나, 여러 번 재시도하면 한도 소진되어 리셋까지 차단됨. `build_fwci_index.py`는 체크포인트/재개·UT→DOI 캐시(`data_2025/.fwci_utdoi_cache.json`) 지원. 직접논문 FWCI는 후속 확장(현재 유발만).
+
+13. **특허 인용 (Lens) — 과학→기술 파급 (I-8)**: 유발논문이 특허에 인용된 정도(연구의 산업·기술 파급)를 4기관 비교. `build_patent_cit.py`가 유발논문 DOI를 **Lens Scholarly Aggregation API**(`/scholarly/aggregate`)에 1,000건씩 배치 질의해 `patent_citation_count`의 합계·평균과 '≥1 특허 인용' 편수(range 필터)를 집계 → `data_2025/patent_cit_index.json`(기관별). `compute.py`가 `optional=True`로 로드해 캐시 최상위 `patent_cit` 키로 주입(특허 인용은 발표 후 누적치라 **전체기간 정적**, 기간 슬라이더 무관). dashboard I-8(`ins_patent`)이 특허 연계율·총 특허인용·논문당 평균을 차트+표로 표시. **결과(2011-2025 누적)**: 특허 연계율 KISTI 15.7%·IBS 12.0%·PAL 12.0%·KBSI 10.8%, 논문당 평균 특허인용 IBS 0.568·KISTI 0.522 최고, Lens 매칭률 ~99.5%. **API caveat**: (1) 키가 **Patent API 전용이면 `/scholarly/search`는 401** — Scholarly **Aggregation** 엔트리(`/scholarly/aggregate`)만 열리며 집계(sum/avg)·range 필터는 되나 `stats`/`value_count`/`range`/numeric `terms` 집계와 `size>100` 레코드 조회는 불가. (2) 한도 **~1,000 req/월·~6 req/분** — 76요청 사용, 배치 간 대기 필수. (3) Lens **Patent API**로는 특허의 NPL 인용을 응답에선 DOI·lens_id까지 주지만 **검색(쿼리) 불가**라 "우리 논문을 인용한 특허" 역검색이 안 됨 → Scholarly 쪽 `patent_citations`가 정답 경로. 토큰: `.lens_token`(git/배포 제외).
 7. **C1 필드 국가명 파싱**: WoS C1 필드에서 국가명 추출 시 `", "` 분리 후 마지막 토큰 사용. 대형 공동연구(CDF, CMS 등)에서 저자 이니셜(예: `"Hou, S."` → `"S"`)이 국가로 오인되는 버그가 있었음. `len(country) >= 4` 필터로 해결 (WoS 최단 국가명: IRAN, PERU, CUBA, OMAN = 4자). sec1_4, sec2_6, sec4_4, sec5_6, sec7_4, sec8_6 6곳에 적용.
 8. **IBS 인력 생산성 제외**: IBS는 NST(국가과학기술연구회) 소관 출연연이 아니므로 인력 CSV에 포함되지 않음. sec9에는 인력 생산성 분석(sec6_4 대응)이 없음.
 9. **PAL 직접논문 분리 불가**: PAL(포항가속기연구소)은 WoS에서 POSTECH 하위기관으로 분류(`org_alias = "POSTECH"`)되어 직접논문 분리가 불가능. 유발논문(사사표기 기반)만 분석. `\bPAL\b` 단독 키워드는 오탐률이 높아 사용하지 않음.
