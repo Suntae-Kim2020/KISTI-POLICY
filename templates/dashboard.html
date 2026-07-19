@@ -8116,15 +8116,20 @@ renderers.ins_patent = function(D) {
 
     // ② 총 특허 인용 + 논문당 평균 (이중축)
     destroyChart('ins8_vol');
+    const avgMax = Math.max(0.1, ...ORG.map(o=>o.d.avg_patent_cit||0));
     charts['ins8_vol'] = new Chart(document.getElementById('ins8_vol'), {
         type:'bar',
         data:{ labels, datasets:[
-            { label:'총 특허 인용수', data: ORG.map(o=>o.d.patent_citations), backgroundColor: COLORS.indigo, yAxisID:'y' },
-            { label:'논문당 평균 특허인용', data: ORG.map(o=>o.d.avg_patent_cit), backgroundColor: COLORS.amber, yAxisID:'y1', type:'line', borderColor: COLORS.amber, tension:0.3 },
+            { label:'총 특허 인용수', data: ORG.map(o=>o.d.patent_citations), backgroundColor: COLORS.indigo, yAxisID:'y', order:2 },
+            { label:'논문당 평균 특허인용', data: ORG.map(o=>o.d.avg_patent_cit), yAxisID:'y1', type:'line',
+              borderColor: COLORS.amber, backgroundColor: COLORS.amber, borderWidth:3, tension:0.3,
+              pointRadius:5, pointHoverRadius:7, pointBackgroundColor: COLORS.amber, fill:false, clip:false, order:1 },
         ]},
         options:{ responsive:true, plugins:{ datalabels:{ display:false } },
+            layout:{ padding:{ top:14 } },
             scales:{ y:{ beginAtZero:true, position:'left', title:{display:true,text:'총 특허 인용수'} },
-                     y1:{ beginAtZero:true, position:'right', grid:{drawOnChartArea:false}, title:{display:true,text:'논문당 평균'} } } }
+                     y1:{ beginAtZero:true, position:'right', grid:{drawOnChartArea:false},
+                          suggestedMax: Math.ceil(avgMax*1.4*100)/100, title:{display:true,text:'논문당 평균'} } } }
     });
     addDataTable('ins8_vol', ['기관','총 특허 인용수','논문당 평균 특허인용'],
         ORG.map(o => [o.k, num(o.d.patent_citations), disp(o.d.avg_patent_cit)]));
