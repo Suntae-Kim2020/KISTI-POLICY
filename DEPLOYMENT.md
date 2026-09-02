@@ -5,6 +5,34 @@
 
 ---
 
+## ⚠️ 현행 운영 구성 (2026-09-02 확인) — 아래 Cloud Run 서술은 미채택 계획이다
+
+이 문서는 **GCP 이전 계획서**다. 실제로는 Cloud Run으로 가지 않고 **자체 서버 호스팅**으로 운영 중이다.
+
+| 항목 | 실제 구성 |
+|------|-----------|
+| 서비스 위치 | **이 서버** (Cloud Run 서비스 없음 — `gcloud run services list` 전 리전 0건) |
+| DNS | `kisti.ailibrary.kr` → 113.198.48.78 (이 서버) |
+| 프런트 | Caddy `reverse_proxy 127.0.0.1:5002` (`/etc/caddy/Caddyfile`) |
+| 프로세스 | systemd 유닛 `kisti-dashboard.service` (`Restart=always`, User=user) |
+
+**`./deploy.sh prod` 를 쓰지 말 것.** 그 스크립트는 `gcloud run deploy --source .` 로
+**존재하지 않는 Cloud Run 서비스를 새로 만든다.** 중복 서비스가 생기고, DNS는 이 서버를
+가리키므로 갱신은 반영되지도 않는다.
+
+**갱신 절차 (데이터 재계산 후 반영)**
+```bash
+cd ~/KISTI_Policy
+KISTEP_BASE=~/KISTEP .venv/bin/python compute.py --version 2026 --start-year 2011 --end-year 2025
+sudo systemctl restart kisti-dashboard
+# sudo 없으면: kill $(systemctl show kisti-dashboard.service -p MainPID --value)  → 3초 뒤 자동 재기동
+```
+재시작이 필요한 이유: `app.py`의 `_load_cache()` 가 `data_cache.json`(71MB)을 첫 요청 때
+읽어 `_caches` dict에 영구 보관한다. 무효화 로직이 없어 파일만 바꾸면 반영되지 않는다.
+(71MB를 매 요청 파싱하지 않으려는 의도적 설계이므로 로딩 방식 자체는 그대로 두는 게 맞다.)
+
+---
+
 ## 1. 배경
 
 - `KISTI_Policy/`는 `KISTEP/` 본과제의 파생 분석 도구로, 동일한 WoS pickle 데이터를 공유한다.
